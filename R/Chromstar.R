@@ -45,7 +45,7 @@
 #'          prefit.on.chr='chr12', chromosomes='chr12', mode='mark', eps.univariate=1,
 #'          eps.multivariate=1)
 #'
-Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='mark', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL) {
+Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='mark', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL, blacklist=NULL) {
   
     #========================
     ### General variables ###
@@ -66,7 +66,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     total.time <- proc.time()
   
     ## Put options into list and merge with conf
-    params <- list(numCPU=numCPU, binsize=binsize, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, prefit.on.chr=prefit.on.chr, eps.univariate=eps.univariate, max.time=max.time, max.iter=max.iter, read.cutoff.absolute=read.cutoff.absolute, keep.posteriors=keep.posteriors, mode=mode, max.states=max.states, per.chrom=per.chrom, eps.multivariate=eps.multivariate, exclusive.table=exclusive.table)
+    params <- list(numCPU=numCPU, binsize=binsize, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, prefit.on.chr=prefit.on.chr, eps.univariate=eps.univariate, max.time=max.time, max.iter=max.iter, read.cutoff.absolute=read.cutoff.absolute, keep.posteriors=keep.posteriors, mode=mode, max.states=max.states, per.chrom=per.chrom, eps.multivariate=eps.multivariate, exclusive.table=exclusive.table, blacklist=blacklist)
     conf <- c(conf, params[setdiff(names(params),names(conf))])
     
     ## Helpers
@@ -139,6 +139,12 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     cat("- chrominfo.tsv: A tab-separated file with chromosome lengths.\n", file=savename, append=TRUE)
     cat("- chromstaR.config: A text file with all the parameters that were used to run Chromstar().\n", append=TRUE, file=savename)
     cat("- experiment_table.tsv: A tab-separated file of your experiment setup.\n", file=savename, append=TRUE)
+
+    if (!is.null(conf[['exclusive.table']]))
+        cat("- exclusive.table.tsv: A tab-separated file of your exclusive states.\n", file=savename, append=TRUE)
+
+    if (!is.null(conf[['blacklist']]))
+        cat("- blacklist.bed.gz: A bed file of your genome blacklist.\n", file=savename, append=TRUE)
     
     cat("\n", file=savename, append=TRUE)
     cat("This folder contains the following folders:\n", file=savename, append=TRUE)
@@ -162,6 +168,18 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
         }
         check.exclusive.table(conf[['exclusive.table']])
         utils::write.table(conf[['exclusive.table']], file=file.path(outputfolder, 'exclusive_table.tsv'), col.names=TRUE, quote=FALSE, row.names=FALSE, sep='\t')
+    }
+
+    ## Write blacklist to file
+    if (!is.null(conf[['blacklist']])) {
+        if ( !(is.character(blacklist) | class(blacklist)=='GRanges') ) {
+            stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
+        }
+
+        if (is.character(conf[['blacklist']])) {
+            conf[['blacklist']] <- readBed3File(conf[['blacklist']])
+        }
+        exportBed3File(conf[['blacklist']], file.path(outputfolder, 'blacklist'))
     }
     
     ## Make a copy of the conf file
@@ -233,7 +251,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
                 if (!input) {
                     exp.table.input <- exp.table
                 }
-                bins <- binReads(file=file, experiment.table=exp.table.input, assembly=chrom.lengths.df, pairedEndReads=pairedEndReads, binsizes=NULL, reads.per.bin=NULL, bins=pre.bins, chromosomes=conf[['chromosomes']], remove.duplicate.reads=conf[['remove.duplicate.reads']], min.mapq=conf[['min.mapq']])
+                bins <- binReads(file=file, experiment.table=exp.table.input, assembly=chrom.lengths.df, pairedEndReads=pairedEndReads, binsizes=NULL, reads.per.bin=NULL, bins=pre.bins, chromosomes=conf[['chromosomes']], remove.duplicate.reads=conf[['remove.duplicate.reads']], min.mapq=conf[['min.mapq']], blacklist=conf[['blacklist']])
                 ptm <- startTimedMessage("Saving to file ", savename, " ...")
                 save(bins, file=savename)
                 stopTimedMessage(ptm)

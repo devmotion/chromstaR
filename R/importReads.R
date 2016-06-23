@@ -29,14 +29,6 @@
 #'print(reads)
 #'
 readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pairedEndReads=FALSE, remove.duplicate.reads=FALSE, min.mapq=10, max.fragment.width=1000, blacklist=NULL, what='mapq') {
-
-    ## Input checks
-    if (!is.null(blacklist)) {
-        if ( !(is.character(blacklist) | class(blacklist)=='GRanges') ) {
-            stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
-        }
-    }
-
     ## Check if bamindex exists
     bamindex.raw <- sub('\\.bai$', '', bamindex)
     bamindex <- paste0(bamindex.raw,'.bai')
@@ -132,25 +124,7 @@ readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pa
     }
 
     ## Exclude reads falling into blacklisted regions
-    if (!is.null(blacklist)) {
-        ptm <- startTimedMessage("Filtering blacklisted regions ...")
-        if (is.character(blacklist)) {
-            if (grepl('^chr', seqlevels(data)[1])) {
-                chromosome.format <- 'UCSC'
-            } else {
-                chromosome.format <- 'NCBI'
-            }
-            black <- readCustomBedFile(blacklist, skip=0, chromosome.format=chromosome.format)
-        } else if (class(blacklist)=='GRanges') {
-            black <- blacklist
-        } else {
-            stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
-        }
-        overlaps <- findOverlaps(data, black)
-        idx <- setdiff(1:length(data), S4Vectors::queryHits(overlaps))
-        data <- data[idx]
-        stopTimedMessage(ptm)
-    }
+    data <- blacklistGRanges(data, blacklist)
 
     return(data)
 
@@ -184,14 +158,6 @@ readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pa
 #'print(reads)
 #'
 readBedFileAsGRanges <- function(bedfile, assembly, chromosomes=NULL, remove.duplicate.reads=FALSE, min.mapq=10, max.fragment.width=1000, blacklist=NULL) {
-
-    ## Input checks
-    if (!is.null(blacklist)) {
-        if ( !(is.character(blacklist) | class(blacklist)=='GRanges') ) {
-            stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
-        }
-    }
-
     # File with reads, specify classes for faster import (0-based)
     ptm <- startTimedMessage("Reading file ",basename(bedfile)," ...")
     classes <- c('character','numeric','numeric','NULL','integer','character')
@@ -276,27 +242,33 @@ readBedFileAsGRanges <- function(bedfile, assembly, chromosomes=NULL, remove.dup
     }
 
     ## Exclude reads falling into blacklisted regions
-    if (!is.null(blacklist)) {
-        ptm <- startTimedMessage("Filtering blacklisted regions ...")
-        if (is.character(blacklist)) {
-            if (grepl('^chr', seqlevels(data)[1])) {
-                chromosome.format <- 'UCSC'
-            } else {
-                chromosome.format <- 'NCBI'
-            }
-            black <- readCustomBedFile(blacklist, skip=0, chromosome.format=chromosome.format)
-        } else if (class(blacklist)=='GRanges') {
-            black <- blacklist
-        } else {
-            stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
-        }
-        overlaps <- findOverlaps(data, black)
-        idx <- setdiff(1:length(data), S4Vectors::queryHits(overlaps))
-        data <- data[idx]
-        stopTimedMessage(ptm)
-    }
+    data <- blacklistGRanges(data, blacklist)
 
     return(data)
 
 }
 
+blacklistGRanges <- function(data, blacklist=NULL) {
+    if (is.null(blacklist))
+        return(data)
+
+    ## Input checks
+    if ( !(is.character(blacklist) | class(blacklist)=='GRanges') )
+        stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
+
+    ptm <- startTimedMessage("Filtering blacklisted regions ...")
+    if (is.character(blacklist)) {
+        blacklist <- readBed3File(blacklist, skip=0)
+    }
+    # Convert both 'data' and 'blacklist' to the same chromsome format
+    data.style <- GenomeInfoDb::seqlevelsStyle(data)
+    seqnames(blacklist) <- GenomeInfoDb::mapSeqlevels(seqnames=as.character(seqnames(data)),
+                                                      style=data.style)
+
+    overlaps <- findOverlaps(data, blacklist)
+    idx <- setdiff(1:length(data), S4Vectors::queryHits(overlaps))
+    data <- data[idx]
+    stopTimedMessage(ptm)
+
+    return(data)
+}

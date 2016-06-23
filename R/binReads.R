@@ -50,10 +50,7 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
     }
 
     ## Variables for bamsignals
-    paired.end <- 'ignore'
-    if (pairedEndReads) {
-        paired.end <- 'filter'
-    }
+    paired.end <- ifelse(pairedEndReads, 'filter', 'ignore')
     
     ## Create INFO object as row from the experiment.table
     if (!is.null(experiment.table)) {
@@ -66,22 +63,14 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
         }
     } else {
         info <- NULL
-        if (format=='GRanges') {
-            ID <- 'GRanges'
-        } else {
-            ID <- basename(file)
-        }
+        ID <- ifelse(format=='GRanges', 'GRanges', basename(file))
     }
 
     ### Read in the data
     data <- NULL
     if (format == "bed") {
         ## BED (0-based)
-        if (!remove.duplicate.reads) {
-            data <- readBedFileAsGRanges(file, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=FALSE, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
-        } else {
-            data <- readBedFileAsGRanges(file, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=TRUE, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
-        }
+        data <- readBedFileAsGRanges(file, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
         chrom.lengths <- seqlengths(data)
     } else if (format == "bam") {
         ## BAM (1-based)
@@ -100,11 +89,7 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
             chrom.lengths <- GenomeInfoDb::seqlengths(Rsamtools::BamFile(file))
             stopTimedMessage(ptm)
         } else {
-            if (!remove.duplicate.reads) {
-                data <- readBamFileAsGRanges(file, bamindex, chromosomes=chromosomes, pairedEndReads=pairedEndReads, remove.duplicate.reads=FALSE, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
-            } else {
-                data <- readBamFileAsGRanges(file, bamindex, chromosomes=chromosomes, pairedEndReads=pairedEndReads, remove.duplicate.reads=TRUE, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
-            }
+            data <- readBamFileAsGRanges(file, bamindex, chromosomes=chromosomes, pairedEndReads=pairedEndReads, remove.duplicate.reads=remove.duplicate, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
             chrom.lengths <- seqlengths(data)
         }
     } else if (format == "GRanges") {
@@ -184,11 +169,12 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
     if (format == 'bam' & use.bamsignals) {
         for (ibinsize in 1:length(bins.list)) {
             binsize <- as.numeric(names(bins.list)[ibinsize])
-            bins <- bins.list[[ibinsize]]
+            # Filter blacklisted bins
+            bins <- blacklistGRanges(bins.list[[ibinsize]], blacklist)
             ptm <- startTimedMessage("Counting overlaps for binsize ", binsize, " ...")
             bins$counts <- bamsignals::bamCount(file, bins, mapqual=min.mapq, paired.end=paired.end, tlenFilter=c(0, max.fragment.width), verbose=FALSE)
             stopTimedMessage(ptm)
-            
+
             attr(bins, 'info') <- info
             attr(bins, 'min.mapq') <- min.mapq
             bins.list[[ibinsize]] <- bins
