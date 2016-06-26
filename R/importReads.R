@@ -247,28 +247,3 @@ readBedFileAsGRanges <- function(bedfile, assembly, chromosomes=NULL, remove.dup
     return(data)
 
 }
-
-blacklistGRanges <- function(data, blacklist=NULL) {
-    if (is.null(blacklist))
-        return(data)
-
-    ## Input checks
-    if ( !(is.character(blacklist) | class(blacklist)=='GRanges') )
-        stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
-
-    ptm <- startTimedMessage("Filtering blacklisted regions ...")
-    if (is.character(blacklist)) {
-        blacklist <- readBed3File(blacklist, skip=0)
-    }
-    # Convert both 'data' and 'blacklist' to the same chromsome format
-    data.style <- GenomeInfoDb::seqlevelsStyle(data)
-    seqnames(blacklist) <- GenomeInfoDb::mapSeqlevels(seqnames=as.character(seqnames(data)),
-                                                      style=data.style)
-
-    overlaps <- findOverlaps(data, blacklist)
-    idx <- setdiff(1:length(data), S4Vectors::queryHits(overlaps))
-    data <- data[idx]
-    stopTimedMessage(ptm)
-
-    return(data)
-}
