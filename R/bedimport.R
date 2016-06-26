@@ -1,6 +1,6 @@
 
 
-#' Read bed3-file into GRanges
+#' Read bed-file into GRanges
 #'
 #' This is a simple convenience function to read a bed(.gz)-file into a \code{\link{GRanges}} object. The bed-file is expected to have at least the following three fields: \code{chromosome, start, end}.
 #'
@@ -16,20 +16,36 @@
 #'bedfile <- system.file("extdata", "liver-H3K4me3-BN-male-bio2-tech1.bed.gz",
 #'                        package="chromstaRData")
 #'## Import the file and skip the first 10 lines
-#'data <- readBed3File(bedfile, skip=10)
+#'data <- readBedFile(bedfile, skip=10)
 #'
-readBed3File <- function(bedfile, skip=0) {
+readBedFile <- function(bedfile, skip=0) {
     ncols <- max(count.fields(bedfile, skip=skip))
     if ( ncols < 3 )
         stop("Not a correct BED3 file format.")
 
-    data <- utils::read.table(bedfile, colClasses=c("character", rep("numeric", 2), rep("NULL", ncols-3)), skip=skip)
-    names(data) <- c("chrom", "chromStart", "chromEnd")
+    if ( ncols < 6 ) {
+        data <- utils::read.table(bedfile, colClasses=c("character", rep("numeric", 2), rep("NULL", ncols-3)), skip=skip)
+        names(data) <- c("chrom", "chromStart", "chromEnd")
 
-    # convert to GRanges object
-    gr <- with(data, GenomicRanges::GRanges(seqnames=chrom,
-                                            ranges=IRanges(start=chromStart+1,     # Convert from 0-based half open to 1-based closed
-                                                           end=chromEnd)))
+        # convert to GRanges object
+        gr <- with(data, GenomicRanges::GRanges(seqnames=chrom,
+                                                ranges=IRanges(start=chromStart+1,     # Convert from 0-based half open to 1-based closed
+                                                               end=chromEnd)))
+    } else {
+        data <- utils::read.table(bedfile, colClasses=c("character", rep("numeric", 2),
+                                                        rep("NULL", 2), "character",
+                                                        rep("NULL", ncols-6)), skip=skip)
+        names(data) <- c("chrom", "chromStart", "chromEnd", "strand")
+
+        # adjust strand information
+        data$strand <- sub("^\\.$", "*", data$strand)
+
+        # convert to GRanges object
+        gr <- with(data, GenomicRanges::GRanges(seqnames=chrom,
+                                                ranges=IRanges(start=chromStart+1,     # Convert from 0-based half open to 1-based closed
+                                                               end=chromEnd),
+                                                strand=strand))
+    }
 
     return(gr)
 }
@@ -91,7 +107,7 @@ blacklistGRanges <- function(gr, blacklist=NULL) {
     ptm <- startTimedMessage("Filtering blacklisted regions ...")
 
     if (is.character(blacklist))
-        blacklist <- readBed3File(blacklist, skip=0)
+        blacklist <- readBedFile(blacklist, skip=0)
 
     # Convert both 'gr' and 'blacklist' to the same chromsome format
     chromosome.format <- GenomeInfoDb::seqlevelsStyle(gr)
