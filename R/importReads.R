@@ -11,7 +11,6 @@
 #' @param remove.duplicate.reads A logical indicating whether or not duplicate reads should be removed.
 #' @param min.mapq Minimum mapping quality when importing from BAM files. Set \code{min.mapq=0} to keep all reads.
 #' @param max.fragment.width Maximum allowed fragment length. This is to filter out erroneously wrong fragments due to mapping errors of paired end reads.
-#' @param blacklist A \code{\link{GRanges}} or a bed(.gz) file with blacklisted regions. Reads falling into those regions will be discarded.
 #' @param what A character vector of fields that are returned. Type \code{\link[Rsamtools]{scanBamWhat}} to see what is available.
 #' @return A \code{\link{GRanges}} object containing the reads.
 #' @importFrom Rsamtools indexBam BamFile ScanBamParam scanBamFlag
@@ -28,7 +27,7 @@
 #'                     min.mapq=10, remove.duplicate.reads=TRUE)
 #'print(reads)
 #'
-readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pairedEndReads=FALSE, remove.duplicate.reads=FALSE, min.mapq=10, max.fragment.width=1000, blacklist=NULL, what='mapq') {
+readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pairedEndReads=FALSE, remove.duplicate.reads=FALSE, min.mapq=10, max.fragment.width=1000, what='mapq') {
     ## Check if bamindex exists
     bamindex.raw <- sub('\\.bai$', '', bamindex)
     bamindex <- paste0(bamindex.raw,'.bai')
@@ -123,9 +122,6 @@ readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pa
         stop("No reads present after filtering. Please lower your 'min.mapq'.")
     }
 
-    ## Exclude reads falling into blacklisted regions
-    data <- blacklistGRanges(data, blacklist)
-
     return(data)
 
 }
@@ -141,7 +137,6 @@ readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pa
 #' @param remove.duplicate.reads A logical indicating whether or not duplicate reads should be removed.
 #' @param min.mapq Minimum mapping quality when importing from BAM files. Set \code{min.mapq=0} to keep all reads.
 #' @param max.fragment.width Maximum allowed fragment length. This is to filter out erroneously wrong fragments.
-#' @param blacklist A \code{\link{GRanges}} or a bed(.gz) file with blacklisted regions. Reads falling into those regions will be discarded.
 #' @return A \code{\link{GRanges}} object containing the reads.
 #' @importFrom utils read.table
 #' @importFrom S4Vectors queryHits
@@ -157,7 +152,7 @@ readBamFileAsGRanges <- function(bamfile, bamindex=bamfile, chromosomes=NULL, pa
 #'                     min.mapq=10, remove.duplicate.reads=TRUE)
 #'print(reads)
 #'
-readBedFileAsGRanges <- function(bedfile, assembly, chromosomes=NULL, remove.duplicate.reads=FALSE, min.mapq=10, max.fragment.width=1000, blacklist=NULL) {
+readBedFileAsGRanges <- function(bedfile, assembly, chromosomes=NULL, remove.duplicate.reads=FALSE, min.mapq=10, max.fragment.width=1000) {
     # File with reads, specify classes for faster import (0-based)
     ptm <- startTimedMessage("Reading file ",basename(bedfile)," ...")
     classes <- c('character','numeric','numeric','NULL','integer','character')
@@ -240,9 +235,6 @@ readBedFileAsGRanges <- function(bedfile, assembly, chromosomes=NULL, remove.dup
     if (length(data)==0) {
         stop("No reads present after filtering. Please lower your 'min.mapq'.")
     }
-
-    ## Exclude reads falling into blacklisted regions
-    data <- blacklistGRanges(data, blacklist)
 
     return(data)
 

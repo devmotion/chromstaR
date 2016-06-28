@@ -85,39 +85,3 @@ exportBed3File <- function(gr, filename, append=FALSE, chromosome.format='NCBI')
 
     close(filename.gz)
 }
-
-#' Remove blacklist from GRanges
-#'
-#' This is a simple convenience function to remove regions from a bed(.gz)-file from a \code{\link{GRanges}} object. The bed-file is expected to have at least the following three fields: \code{chromosome, start, end}.
-#'
-#' @param gr A \code{\link{GRanges}} object.
-#' @param blacklist Filename of the bed or bed.gz file which contains the blacklisted regions.
-#' @return A \code{\link{GRanges}} object with the regions not overlapping any regions of the blacklist.
-#' @importFrom utils write.table
-#' @author Aaron Taudt, David Widmann
-#' @export
-blacklistGRanges <- function(gr, blacklist=NULL) {
-    if (is.null(blacklist))
-        return(gr)
-
-    ## Input checks
-    if ( !(is.character(blacklist) | class(blacklist)=='GRanges') )
-        stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
-
-    ptm <- startTimedMessage("Filtering blacklisted regions ...")
-
-    if (is.character(blacklist))
-        blacklist <- readBedFile(blacklist, skip=0)
-
-    # Convert both 'gr' and 'blacklist' to the same chromsome format
-    chromosome.format <- GenomeInfoDb::seqlevelsStyle(gr)
-    seqnames(blacklist) <- GenomeInfoDb::mapSeqlevels(seqnames=as.character(seqnames(gr)),
-                                                      style=chromosome.format)
-
-    overlaps <- findOverlaps(gr, blacklist)
-    idx <- setdiff(1:length(gr), S4Vectors::queryHits(overlaps))
-    gr <- gr[idx]
-    stopTimedMessage(ptm)
-
-    return(gr)
-}

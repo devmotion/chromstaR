@@ -11,6 +11,7 @@
 #' @param experiment.table An \code{\link{experiment.table}} containing the supplied \code{file}. This is necessary to uniquely identify the file in later steps of the workflow. Set to \code{NULL} if you don't have it (not recommended).
 #' @inheritParams readBamFileAsGRanges
 #' @inheritParams readBedFileAsGRanges
+#' @param blacklist A \code{\link{GRanges}} or a bed(.gz) file with blacklisted regions. Bins falling into those regions will be discarded.
 #' @param binsizes An integer vector specifying the bin sizes to use.
 #' @param bins A named \code{list} with \code{\link{GRanges}} containing precalculated bins produced by \code{\link{fixedWidthBins}} or \code{\link{variableWidthBins}}. Names must correspond to the binsize.
 #' @param reads.per.bin Approximate number of desired reads per bin. The bin size will be selected accordingly.
@@ -70,7 +71,7 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
     data <- NULL
     if (format == "bed") {
         ## BED (0-based)
-        data <- readBedFileAsGRanges(file, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
+        data <- readBedFileAsGRanges(file, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width)
         chrom.lengths <- seqlengths(data)
     } else if (format == "bam") {
         ## BAM (1-based)
@@ -89,7 +90,7 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
             chrom.lengths <- GenomeInfoDb::seqlengths(Rsamtools::BamFile(file))
             stopTimedMessage(ptm)
         } else {
-            data <- readBamFileAsGRanges(file, bamindex, chromosomes=chromosomes, pairedEndReads=pairedEndReads, remove.duplicate.reads=remove.duplicate, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
+            data <- readBamFileAsGRanges(file, bamindex, chromosomes=chromosomes, pairedEndReads=pairedEndReads, remove.duplicate.reads=remove.duplicate, min.mapq=min.mapq, max.fragment.width=max.fragment.width)
             chrom.lengths <- seqlengths(data)
         }
     } else if (format == "GRanges") {
@@ -138,9 +139,9 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
             vformat <- 'GRanges'
         }
         if (vformat == 'bam') {
-            refreads <- readBamFileAsGRanges(variable.width.reference, bamindex=variable.width.reference, chromosomes=chroms2use, pairedEndReads=pairedEndReads, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
+            refreads <- readBamFileAsGRanges(variable.width.reference, bamindex=variable.width.reference, chromosomes=chroms2use, pairedEndReads=pairedEndReads, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width)
         } else if (vformat == 'bed') {
-            refreads <- readBedFileAsGRanges(variable.width.reference, assembly=assembly, chromosomes=chroms2use, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width, blacklist=blacklist)
+            refreads <- readBedFileAsGRanges(variable.width.reference, assembly=assembly, chromosomes=chroms2use, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width)
         }
         bins.binsize <- variableWidthBins(refreads, binsizes=binsizes, chromosomes=chroms2use)
         message("Finished making variable width bins.")
@@ -211,6 +212,41 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
     } else {
         return(bins.list)
     }
+}
+
+#' Remove blacklist from GRanges
+#'
+#' This is a simple convenience function to remove regions from a bed(.gz)-file from a \code{\link{GRanges}} object. The bed-file is expected to have at least the following three fields: \code{chromosome, start, end}.
+#'
+#' @param gr A \code{\link{GRanges}} object.
+#' @param blacklist Filename of the bed or bed.gz file which contains the blacklisted regions.
+#' @return A \code{\link{GRanges}} object with the regions not overlapping any regions of the blacklist.
+#' @importFrom utils write.table
+#' @author Aaron Taudt, David Widmann
+blacklistGRanges <- function(gr, blacklist=NULL) {
+    if (is.null(blacklist))
+        return(gr)
+
+    ## Input checks
+    if ( !(is.character(blacklist) | class(blacklist)=='GRanges') )
+        stop("'blacklist' has to be either a bed(.gz) file or a GRanges object")
+
+    ptm <- startTimedMessage("Filtering blacklisted regions ...")
+
+    if (is.character(blacklist))
+        blacklist <- readBedFile(blacklist, skip=0)
+
+    # Convert both 'gr' and 'blacklist' to the same chromsome format
+    chromosome.format <- GenomeInfoDb::seqlevelsStyle(gr)
+    seqnames(blacklist) <- GenomeInfoDb::mapSeqlevels(seqnames=as.character(seqnames(gr)),
+                                                      style=chromosome.format)
+
+    overlaps <- findOverlaps(gr, blacklist)
+    idx <- setdiff(1:length(gr), S4Vectors::queryHits(overlaps))
+    gr <- gr[idx]
+    stopTimedMessage(ptm)
+
+    return(gr)
 }
 
 
