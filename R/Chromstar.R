@@ -22,7 +22,8 @@
 #' @param per.chrom If set to \code{TRUE} chromosomes will be treated separately in the multivariate part. This tremendously speeds up the calculation but results might be noisier as compared to \code{per.chrom=FALSE}, where all chromosomes are concatenated for the HMM.
 #' @param eps.univariate Convergence threshold for the univariate Baum-Welch algorithm.
 #' @param eps.multivariate Convergence threshold for the multivariate Baum-Welch algorithm.
-#' @param exclusive.table A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.
+#' @param exclusive.table A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as exclusive. Combinations contain at most @code{max.exclusive} histone marks of the same group.
+#' @param max.exlusive The maximum number of histone marks of the same group in @code{exclusive.table}.
 #' @return \code{NULL}
 #' @import foreach
 #' @import doParallel
@@ -45,7 +46,7 @@
 #'          prefit.on.chr='chr12', chromosomes='chr12', mode='mark', eps.univariate=1,
 #'          eps.multivariate=1)
 #'
-Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='mark', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL) {
+Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='mark', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL, max.exclusive=1) {
   
     #========================
     ### General variables ###
@@ -66,7 +67,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     total.time <- proc.time()
   
     ## Put options into list and merge with conf
-    params <- list(numCPU=numCPU, binsize=binsize, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, prefit.on.chr=prefit.on.chr, eps.univariate=eps.univariate, max.time=max.time, max.iter=max.iter, read.cutoff.absolute=read.cutoff.absolute, keep.posteriors=keep.posteriors, mode=mode, max.states=max.states, per.chrom=per.chrom, eps.multivariate=eps.multivariate, exclusive.table=exclusive.table)
+    params <- list(numCPU=numCPU, binsize=binsize, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, prefit.on.chr=prefit.on.chr, eps.univariate=eps.univariate, max.time=max.time, max.iter=max.iter, read.cutoff.absolute=read.cutoff.absolute, keep.posteriors=keep.posteriors, mode=mode, max.states=max.states, per.chrom=per.chrom, eps.multivariate=eps.multivariate, exclusive.table=exclusive.table, max.exclusive=max.exclusive)
     conf <- c(conf, params[setdiff(names(params),names(conf))])
     
     ## Helpers
@@ -426,7 +427,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
         savename <- file.path(multipath, paste0('multivariate_mode-', mode, '.RData'))
         if (!file.exists(savename)) {
             files <- file.path(unipath, filenames)
-            states <- stateBrewer(exp.table, mode=mode, exclusive.table=conf[['exclusive.table']])
+            states <- stateBrewer(exp.table, mode=mode, exclusive.table=conf[['exclusive.table']], max.exclusive=conf[['max.exclusive']])
             multimodel <- callPeaksMultivariate(files, use.states=states, max.states=conf[['max.states']], eps=conf[['eps.multivariate']], max.iter=conf[['max.iter']], max.time=conf[['max.time']], num.threads=conf[['numCPU']], per.chrom=conf[['per.chrom']], keep.posteriors=conf[['keep.posteriors']])
             ptm <- startTimedMessage("Saving to file ", savename, " ...")
             save(multimodel, file=savename)
@@ -446,7 +447,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
             if (!file.exists(savename)) {
                 mask <- exp.table[,'condition'] == condition
                 files <- file.path(unipath, filenames)[mask]
-                states <- stateBrewer(exp.table[mask,], mode=mode, exclusive.table=conf[['exclusive.table']])
+                states <- stateBrewer(exp.table[mask,], mode=mode, exclusive.table=conf[['exclusive.table']], max.exclusive=conf[['max.exclusive']])
                 multimodel <- callPeaksMultivariate(files, use.states=states, max.states=conf[['max.states']], eps=conf[['eps.multivariate']], max.iter=conf[['max.iter']], max.time=conf[['max.time']], num.threads=conf[['numCPU']], per.chrom=conf[['per.chrom']], keep.posteriors=conf[['keep.posteriors']])
                 ptm <- startTimedMessage("Saving to file ", savename, " ...")
                 save(multimodel, file=savename)
@@ -467,7 +468,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
             if (!file.exists(savename)) {
                 mask <- exp.table[,'mark'] == mark
                 files <- file.path(unipath, filenames)[mask]
-                states <- stateBrewer(exp.table[mask,], mode=mode, exclusive.table=conf[['exclusive.table']])
+                states <- stateBrewer(exp.table[mask,], mode=mode, exclusive.table=conf[['exclusive.table']], max.exclusive=conf[['max.exclusive']])
                 multimodel <- callPeaksMultivariate(files, use.states=states, max.states=conf[['max.states']], eps=conf[['eps.multivariate']], max.iter=conf[['max.iter']], max.time=conf[['max.time']], num.threads=conf[['numCPU']], per.chrom=conf[['per.chrom']], keep.posteriors=conf[['keep.posteriors']])
                 ptm <- startTimedMessage("Saving to file ", savename, " ...")
                 save(multimodel, file=savename)

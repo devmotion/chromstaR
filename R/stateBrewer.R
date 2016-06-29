@@ -32,16 +32,16 @@
 #'                              group=c(1,1))
 #'stateBrewer(experiment_table, mode='full', exclusive.table=excl)
 #'
-stateBrewer <- function(experiment.table, mode, differential.states=FALSE, common.states=FALSE, exclusive.table=NULL) {
+stateBrewer <- function(experiment.table, mode, differential.states=FALSE, common.states=FALSE, exclusive.table=NULL, max.exclusive=1) {
 
     check.experiment.table(experiment.table)
     exp <- experiment.table
     if (mode == 'full') {
-        combstates <- state.brewer(replicates=paste0(exp$mark, '-', exp$condition), conditions=exp$condition, tracks2compare=exp$mark, differential.states=differential.states, common.states=common.states, exclusive.table=exclusive.table)
+        combstates <- state.brewer(replicates=paste0(exp$mark, '-', exp$condition), conditions=exp$condition, tracks2compare=exp$mark, differential.states=differential.states, common.states=common.states, exclusive.table=exclusive.table, max.exclusive=max.exclusive)
     } else if (mode == 'mark') {
-        combstates <- state.brewer(replicates=exp$mark, conditions=exp$condition, tracks2compare=exp$mark, differential.states=differential.states, common.states=common.states, exclusive.table=exclusive.table)
+        combstates <- state.brewer(replicates=exp$mark, conditions=exp$condition, tracks2compare=exp$mark, differential.states=differential.states, common.states=common.states, exclusive.table=exclusive.table, max.exclusive=max.exclusive)
     } else if (mode == 'condition') {
-        combstates <- state.brewer(replicates=exp$condition, conditions=exp$condition, tracks2compare=exp$mark, differential.states=differential.states, common.states=common.states, exclusive.table=exclusive.table)
+        combstates <- state.brewer(replicates=exp$condition, conditions=exp$condition, tracks2compare=exp$mark, differential.states=differential.states, common.states=common.states, exclusive.table=exclusive.table, max.exclusive=max.exclusive)
     } else {
         stop("Unknown mode.")
     }
@@ -87,7 +87,8 @@ stateBrewer <- function(experiment.table, mode, differential.states=FALSE, commo
 #'     \item \code{'d[]'}: at least one sample in group [] has to be different from the other samples in group [] 
 #'   }
 #' 
-#' @param exclusive.table A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.
+#' @param exclusive.table A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as exclusive. Combinations contain at most @code{max.exclusive} histone marks of the same group.
+#' @param max.exlusive The maximum number of histone marks of the same group in @code{exclusive.table}.
 #' @return A data.frame with combinations and their corresponding (decimal) combinatorial states.
 #' @examples
 #'# Get all combinatorial states where sample1=0, sample2=1, sample3=(0 or 1),
@@ -101,7 +102,7 @@ stateBrewer <- function(experiment.table, mode, differential.states=FALSE, commo
 #'#  sample4=(0 or 1)
 #'chromstaR:::state.brewer(statespec=c('r.A','1.B','1.C','x.D','r.A'))
 #'
-state.brewer <- function(replicates=NULL, differential.states=FALSE, min.diff=1, common.states=FALSE, conditions=NULL, tracks2compare=NULL, sep='+', statespec=NULL, diffstatespec=NULL, exclusive.table=NULL) {
+state.brewer <- function(replicates=NULL, differential.states=FALSE, min.diff=1, common.states=FALSE, conditions=NULL, tracks2compare=NULL, sep='+', statespec=NULL, diffstatespec=NULL, exclusive.table=NULL, max.exclusive=1) {
 
 #     ## Debug
 # #     conditions <- tissues
@@ -201,8 +202,8 @@ state.brewer <- function(replicates=NULL, differential.states=FALSE, min.diff=1,
     
     ### Select exclusive states
     if (!is.null(exclusive.table)) {
-        if (is.null(tracks2compare) | is.null(conditions)) {
-            stop("Arguments 'tracks2compare' and 'conditions' must be specified if 'exclusive.table' was specified.")
+        if (is.null(conditions)) {
+            stop("Argument 'conditions' must be specified if 'exclusive.table' was specified.")
         }
 
         if (is.character(exclusive.table)) {
@@ -218,8 +219,8 @@ state.brewer <- function(replicates=NULL, differential.states=FALSE, min.diff=1,
         
         loci <- split(excl.table$mark, excl.table$group)
 
-        tracknames.split <- split(tracknames, conditions)
-        # tracks2compare.split <- split(tracks2compare, conditions)
+        tracknames.split <- split(tracknames, conditions))
+
         for (cond in unique(conditions)) {
             names <- tracknames.split[[as.character(cond)]]
             
@@ -228,7 +229,7 @@ state.brewer <- function(replicates=NULL, differential.states=FALSE, min.diff=1,
                 track.index <- which((grepl(paste0(unlist(locus), collapse='|'), names)) & !duplicated(names))
 
                 if (length(track.index) > 1) { # no restrictions if only one modification exists
-                    mask <- rowSums(as.matrix(binstates[,names[track.index]]), na.rm = TRUE) < 2
+                    mask <- rowSums(as.matrix(binstates[,names[track.index]]), na.rm = TRUE) <= max.exclusive
                     binstates <- binstates[mask,]
                     
                     if (class(binstates)!='matrix') {

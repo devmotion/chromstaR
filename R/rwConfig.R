@@ -82,7 +82,7 @@ writeConfig <- function(conf, configfile) {
         cat(i1," = ",formatstring(conf[[i1]]),"\n", file=f)
     }
     cat("\n[Multivariate]\n", file=f)
-    for (i1 in c('mode', 'eps.multivariate', 'max.states', 'per.chrom', 'keep.posteriors', 'exclusive.table')) {
+    for (i1 in c('mode', 'eps.multivariate', 'max.states', 'per.chrom', 'keep.posteriors', 'exclusive.table', 'max.exclusive')) {
         cat(i1," = ",formatstring(conf[[i1]]),"\n", file=f)
     }
     close(f, type='w')
