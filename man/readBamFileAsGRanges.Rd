@@ -6,7 +6,7 @@
 \usage{
 readBamFileAsGRanges(bamfile, bamindex = bamfile, chromosomes = NULL,
   pairedEndReads = FALSE, remove.duplicate.reads = FALSE, min.mapq = 10,
-  max.fragment.width = 1000, blacklist = NULL, what = "mapq")
+  max.fragment.width = 1000, what = "mapq")
 }
 \arguments{
 \item{bamfile}{A sorted BAM file.}
@@ -22,8 +22,6 @@ readBamFileAsGRanges(bamfile, bamindex = bamfile, chromosomes = NULL,
 \item{min.mapq}{Minimum mapping quality when importing from BAM files. Set \code{min.mapq=0} to keep all reads.}
 
 \item{max.fragment.width}{Maximum allowed fragment length. This is to filter out erroneously wrong fragments due to mapping errors of paired end reads.}
-
-\item{blacklist}{A \code{\link{GRanges}} or a bed(.gz) file with blacklisted regions. Reads falling into those regions will be discarded.}
 
 \item{what}{A character vector of fields that are returned. Type \code{\link[Rsamtools]{scanBamWhat}} to see what is available.}
 }

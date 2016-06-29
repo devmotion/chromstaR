@@ -6,7 +6,7 @@
 \usage{
 readBedFileAsGRanges(bedfile, assembly, chromosomes = NULL,
   remove.duplicate.reads = FALSE, min.mapq = 10,
-  max.fragment.width = 1000, blacklist = NULL)
+  max.fragment.width = 1000)
 }
 \arguments{
 \item{bedfile}{A file with aligned reads in BED-6 format. The columns have to be c('chromosome','start','end','description','mapq','strand').}
@@ -20,8 +20,6 @@ readBedFileAsGRanges(bedfile, assembly, chromosomes = NULL,
 \item{min.mapq}{Minimum mapping quality when importing from BAM files. Set \code{min.mapq=0} to keep all reads.}
 
 \item{max.fragment.width}{Maximum allowed fragment length. This is to filter out erroneously wrong fragments.}
-
-\item{blacklist}{A \code{\link{GRanges}} or a bed(.gz) file with blacklisted regions. Reads falling into those regions will be discarded.}
 }
 \value{
 A \code{\link{GRanges}} object containing the reads.

@@ -8,7 +8,7 @@
 #' @param skip Number of lines to skip at the beginning.
 #' @return A \code{\link{GRanges}} object with the contents of the bed-file.
 #' @author Aaron Taudt, David Widmann
-#' @importFrom utils read.table
+#' @importFrom utils count.fields read.table
 #' @export
 #'
 #'@examples
@@ -19,7 +19,7 @@
 #'data <- readBedFile(bedfile, skip=10)
 #'
 readBedFile <- function(bedfile, skip=0) {
-    ncols <- max(count.fields(bedfile, skip=skip))
+    ncols <- max(utils::count.fields(bedfile, skip=skip))
     if ( ncols < 3 )
         stop("Not a correct BED3 file format.")
 
@@ -28,9 +28,9 @@ readBedFile <- function(bedfile, skip=0) {
         names(data) <- c("chrom", "chromStart", "chromEnd")
 
         # convert to GRanges object
-        gr <- with(data, GenomicRanges::GRanges(seqnames=chrom,
-                                                ranges=IRanges(start=chromStart+1,     # Convert from 0-based half open to 1-based closed
-                                                               end=chromEnd)))
+        gr <- GenomicRanges::GRanges(seqnames=data$chrom,
+                                     ranges=IRanges(start=data$chromStart+1,     # Convert from 0-based half open to 1-based closed
+                                                    end=data$chromEnd))
     } else {
         data <- utils::read.table(bedfile, colClasses=c("character", rep("numeric", 2),
                                                         rep("NULL", 2), "character",
@@ -41,10 +41,10 @@ readBedFile <- function(bedfile, skip=0) {
         data$strand <- sub("^\\.$", "*", data$strand)
 
         # convert to GRanges object
-        gr <- with(data, GenomicRanges::GRanges(seqnames=chrom,
-                                                ranges=IRanges(start=chromStart+1,     # Convert from 0-based half open to 1-based closed
-                                                               end=chromEnd),
-                                                strand=strand))
+        gr <- GenomicRanges::GRanges(seqnames=data$chrom,
+                                     ranges=IRanges(start=data$chromStart+1,     # Convert from 0-based half open to 1-based closed
+                                                    end=data$chromEnd),
+                                     strand=data$strand)
     }
 
     return(gr)
@@ -76,7 +76,7 @@ exportBed3File <- function(gr, filename, append=FALSE, chromosome.format='NCBI')
     }
 
     # Collect genomic data
-    data <- data.frame("chrom" = as.factor(GenomeInfoDb::MapSeqlevels(seqnames=seqnames(x), style=chromosome.format)),
+    data <- data.frame("chrom" = as.factor(GenomeInfoDb::mapSeqlevels(seqnames=seqnames(gr), style=chromosome.format)),
                        "chromStart" = start(gr) - 1, # Convert from 1-based closed to 0-based half open
                        "chromEnd" = end(gr))
 

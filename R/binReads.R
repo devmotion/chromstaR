@@ -90,7 +90,7 @@ binReads <- function(file, experiment.table=NULL, assembly, bamindex=file, chrom
             chrom.lengths <- GenomeInfoDb::seqlengths(Rsamtools::BamFile(file))
             stopTimedMessage(ptm)
         } else {
-            data <- readBamFileAsGRanges(file, bamindex, chromosomes=chromosomes, pairedEndReads=pairedEndReads, remove.duplicate.reads=remove.duplicate, min.mapq=min.mapq, max.fragment.width=max.fragment.width)
+            data <- readBamFileAsGRanges(file, bamindex, chromosomes=chromosomes, pairedEndReads=pairedEndReads, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, max.fragment.width=max.fragment.width)
             chrom.lengths <- seqlengths(data)
         }
     } else if (format == "GRanges") {

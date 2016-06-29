@@ -10,7 +10,7 @@ Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
   eps.univariate = 0.1, max.time = NULL, max.iter = 5000,
   read.cutoff.absolute = 500, keep.posteriors = TRUE, mode = "mark",
   max.states = 128, per.chrom = TRUE, eps.multivariate = 0.01,
-  exclusive.table = NULL)
+  exclusive.table = NULL, blacklist = NULL)
 }
 \arguments{
 \item{inputfolder}{Folder with either BAM or BED-6 (see \code{\link{readBedFileAsGRanges}} files.}

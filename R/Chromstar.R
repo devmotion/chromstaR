@@ -177,7 +177,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
         }
 
         if (is.character(conf[['blacklist']])) {
-            conf[['blacklist']] <- readBed3File(conf[['blacklist']])
+            conf[['blacklist']] <- readBedFile(conf[['blacklist']])
         }
         exportBed3File(conf[['blacklist']], file.path(outputfolder, 'blacklist'))
     }

@@ -30,7 +30,7 @@ binReads(file, experiment.table = NULL, assembly, bamindex = file,
 
 \item{max.fragment.width}{Maximum allowed fragment length. This is to filter out erroneously wrong fragments due to mapping errors of paired end reads.}
 
-\item{blacklist}{A \code{\link{GRanges}} or a bed(.gz) file with blacklisted regions. Reads falling into those regions will be discarded.}
+\item{blacklist}{A \code{\link{GRanges}} or a bed(.gz) file with blacklisted regions. Bins falling into those regions will be discarded.}
 
 \item{binsizes}{An integer vector specifying the bin sizes to use.}
 
