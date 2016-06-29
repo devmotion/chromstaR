@@ -23,6 +23,7 @@
 #' @param eps.univariate Convergence threshold for the univariate Baum-Welch algorithm.
 #' @param eps.multivariate Convergence threshold for the multivariate Baum-Welch algorithm.
 #' @param exclusive.table A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.
+#' @param blacklist Filename of the bed or bed.gz file which contains the blacklisted regions.
 #' @return \code{NULL}
 #' @import foreach
 #' @import doParallel

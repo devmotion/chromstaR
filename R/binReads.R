@@ -236,10 +236,8 @@ blacklistGRanges <- function(gr, blacklist=NULL) {
     if (is.character(blacklist))
         blacklist <- readBedFile(blacklist, skip=0)
 
-    # Convert both 'gr' and 'blacklist' to the same chromsome format
-    chromosome.format <- GenomeInfoDb::seqlevelsStyle(gr)
-    seqnames(blacklist) <- GenomeInfoDb::mapSeqlevels(seqnames=as.character(seqnames(gr)),
-                                                      style=chromosome.format)
+    ## Convert both 'gr' and 'blacklist' to the same chromsome format
+    seqlevelsStyle(blacklist) <- GenomeInfoDb::seqlevelsStyle(gr)
 
     overlaps <- findOverlaps(gr, blacklist)
     idx <- setdiff(1:length(gr), S4Vectors::queryHits(overlaps))

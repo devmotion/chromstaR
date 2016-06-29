@@ -26,26 +26,21 @@ readBedFile <- function(bedfile, skip=0) {
     if ( ncols < 6 ) {
         data <- utils::read.table(bedfile, colClasses=c("character", rep("numeric", 2), rep("NULL", ncols-3)), skip=skip)
         names(data) <- c("chrom", "chromStart", "chromEnd")
-
-        # convert to GRanges object
-        gr <- GenomicRanges::GRanges(seqnames=data$chrom,
-                                     ranges=IRanges(start=data$chromStart+1,     # Convert from 0-based half open to 1-based closed
-                                                    end=data$chromEnd))
     } else {
         data <- utils::read.table(bedfile, colClasses=c("character", rep("numeric", 2),
                                                         rep("NULL", 2), "character",
                                                         rep("NULL", ncols-6)), skip=skip)
         names(data) <- c("chrom", "chromStart", "chromEnd", "strand")
 
-        # adjust strand information
+        ## adjust strand information
         data$strand <- sub("^\\.$", "*", data$strand)
-
-        # convert to GRanges object
-        gr <- GenomicRanges::GRanges(seqnames=data$chrom,
-                                     ranges=IRanges(start=data$chromStart+1,     # Convert from 0-based half open to 1-based closed
-                                                    end=data$chromEnd),
-                                     strand=data$strand)
     }
+
+    ## convert to GRanges object
+    gr <- GenomicRanges::GRanges(seqnames=data$chrom,
+                                 ranges=IRanges(start=data$chromStart+1,     # Convert from 0-based half open to 1-based closed
+                                                end=data$chromEnd),
+                                 strand=data$strand)
 
     return(gr)
 }
