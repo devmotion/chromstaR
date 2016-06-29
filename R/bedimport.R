@@ -76,7 +76,7 @@ exportBed3File <- function(gr, filename, append=FALSE, chromosome.format='NCBI')
     }
 
     # Collect genomic data
-    data <- data.frame("chrom" = as.factor(GenomeInfoDb::mapSeqlevels(seqnames=seqnames(gr), style=chromosome.format)),
+    data <- data.frame("chrom" = as.factor(GenomeInfoDb::mapSeqlevels(seqnames=as.character(seqnames(gr)), style=chromosome.format)),
                        "chromStart" = start(gr) - 1, # Convert from 1-based closed to 0-based half open
                        "chromEnd" = end(gr))
 
