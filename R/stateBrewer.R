@@ -218,9 +218,7 @@ state.brewer <- function(replicates=NULL, differential.states=FALSE, min.diff=1,
         }
         
         loci <- split(excl.table$mark, excl.table$group)
-
-        tracknames.split <- split(tracknames, conditions))
-
+        tracknames.split <- split(tracknames, conditions)
         for (cond in unique(conditions)) {
             names <- tracknames.split[[as.character(cond)]]
             
