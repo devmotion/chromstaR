@@ -23,6 +23,7 @@
 #' @param eps.univariate Convergence threshold for the univariate Baum-Welch algorithm.
 #' @param eps.multivariate Convergence threshold for the multivariate Baum-Welch algorithm.
 #' @param exclusive.table A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.
+#' @param pre.bins A \code{GRanges} object with precalculated bins.
 #' @return \code{NULL}
 #' @import foreach
 #' @import doParallel
@@ -45,7 +46,7 @@
 #'          prefit.on.chr='chr12', chromosomes='chr12', mode='combinatorial', eps.univariate=1,
 #'          eps.multivariate=1)
 #'
-Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='differential', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL) {
+Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='differential', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL, pre.bins=NULL) {
   
     #========================
     ### General variables ###
@@ -219,7 +220,9 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     utils::write.table(chrom.lengths.df, file=file.path(outputfolder, 'chrominfo.tsv'), sep='\t', row.names=FALSE, col.names=TRUE, quote=FALSE)
     
     ### Make bins ###
-    pre.bins <- fixedWidthBins(chrom.lengths=chrom.lengths, chromosomes=conf[['chromosomes']], binsizes=binsize)
+    if (is.null(pre.bins)) {
+        pre.bins <- fixedWidthBins(chrom.lengths=chrom.lengths, chromosomes=conf[['chromosomes']], binsizes=binsize)
+    }
     
     ### Count reads in bins ###
     if (!file.exists(binpath)) { dir.create(binpath) }
