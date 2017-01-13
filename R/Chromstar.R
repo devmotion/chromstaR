@@ -23,7 +23,7 @@
 #' @param eps.univariate Convergence threshold for the univariate Baum-Welch algorithm.
 #' @param eps.multivariate Convergence threshold for the multivariate Baum-Welch algorithm.
 #' @param exclusive.table A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.
-#' @param pre.bins A \code{GRanges} object with precalculated bins.
+#' @param pre.bins A named \code{list} with \code{\link{GRanges}} containing precalculated bins produced by \code{\link{fixedWidthBins}} or \code{\link{variableWidthBins}}. Names must correspond to the binsize.
 #' @return \code{NULL}
 #' @import foreach
 #' @import doParallel
