@@ -10,7 +10,7 @@ Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
   eps.univariate = 0.1, max.time = NULL, max.iter = 5000,
   read.cutoff.absolute = 500, keep.posteriors = TRUE,
   mode = "differential", max.states = 128, per.chrom = TRUE,
-  eps.multivariate = 0.01, exclusive.table = NULL)
+  eps.multivariate = 0.01, exclusive.table = NULL, pre.bins = NULL)
 }
 \arguments{
 \item{inputfolder}{Folder with either BAM or BED-6 (see \code{\link{readBedFileAsGRanges}} files.}
@@ -60,6 +60,8 @@ Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
 \item{eps.multivariate}{Convergence threshold for the multivariate Baum-Welch algorithm.}
 
 \item{exclusive.table}{A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.}
+
+\item{pre.bins}{A named \code{list} with \code{\link{GRanges}} containing precalculated bins produced by \code{\link{fixedWidthBins}} or \code{\link{variableWidthBins}}. Names must correspond to the binsize.}
 }
 \value{
 \code{NULL}
