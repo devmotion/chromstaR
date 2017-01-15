@@ -61,7 +61,7 @@ Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
 
 \item{exclusive.table}{A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.}
 
-\item{pre.bins}{A named \code{list} with \code{\link{GRanges}} containing precalculated bins produced by \code{\link{fixedWidthBins}} or \code{\link{variableWidthBins}}. Names must correspond to the binsize.}
+\item{pre.bins}{A named \code{list} with \code{\link{GRanges}} containing precalculated bins produced by \code{\link{fixedWidthBins}} or \code{\link{variableWidthBins}}. Names must correspond to the binsize. If \code{pre.bins} is specified, any \code{binsize} specified as command line parameter or in \code{configfile} will be ignored.}
 }
 \value{
 \code{NULL}

@@ -23,7 +23,7 @@
 #' @param eps.univariate Convergence threshold for the univariate Baum-Welch algorithm.
 #' @param eps.multivariate Convergence threshold for the multivariate Baum-Welch algorithm.
 #' @param exclusive.table A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.
-#' @param pre.bins A named \code{list} with \code{\link{GRanges}} containing precalculated bins produced by \code{\link{fixedWidthBins}} or \code{\link{variableWidthBins}}. Names must correspond to the binsize.
+#' @param pre.bins A named \code{list} with \code{\link{GRanges}} containing precalculated bins produced by \code{\link{fixedWidthBins}} or \code{\link{variableWidthBins}}. Names must correspond to the binsize. If \code{pre.bins} is specified, any \code{binsize} specified as command line parameter or in \code{configfile} will be ignored.
 #' @return \code{NULL}
 #' @import foreach
 #' @import doParallel
@@ -69,7 +69,11 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     ## Put options into list and merge with conf
     params <- list(numCPU=numCPU, binsize=binsize, assembly=assembly, chromosomes=chromosomes, remove.duplicate.reads=remove.duplicate.reads, min.mapq=min.mapq, prefit.on.chr=prefit.on.chr, eps.univariate=eps.univariate, max.time=max.time, max.iter=max.iter, read.cutoff.absolute=read.cutoff.absolute, keep.posteriors=keep.posteriors, mode=mode, max.states=max.states, per.chrom=per.chrom, eps.multivariate=eps.multivariate, exclusive.table=exclusive.table)
     conf <- c(conf, params[setdiff(names(params),names(conf))])
-    
+
+    ## Update binsize if necessary
+    if (!is.null(pre.bins))
+      conf[['binsize']] <- as.integer(names(pre.bins))
+
     ## Helpers
     binsize <- conf[['binsize']]
     binsize.string <- format(binsize, scientific=FALSE, trim=TRUE)
