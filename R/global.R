@@ -3,6 +3,7 @@
 #' @import IRanges
 #' @import GenomicRanges
 #' @import chromstaRData
+#' @importFrom methods as is
 NULL
 
 # =======================================================
@@ -33,20 +34,13 @@ dnbinom.variance <- function(size, prob) {
     return( (size - prob*size) / prob^2 )
 }
 
-# ==================
-# Printing functions
-# ==================
-message.underlined <- function(string, line='=') {
-    string.length <- nchar(string)
-    underline <- paste0(rep(line, string.length), collapse='')
-    message(string)
-    message(underline)
+rpkm.vector <- function(counts, binsize) {
+    rpkm <- counts / sum(as.numeric(counts)) * 1e6 * 1000 / binsize
+    return(rpkm)
 }
 
-message.overlined <- function(string, line='=') {
-    string.length <- nchar(string)
-    overline <- paste0(rep(line, string.length), collapse='')
-    message(string)
-    message(overline)
+rpkm.matrix <- function(counts, binsize) {
+    rpkm <- sweep(counts, MARGIN = 2, STATS = colSums(counts), FUN = '/')
+    rpkm <- rpkm * 1e6 * 1000 / binsize
+    return(rpkm)
 }
-

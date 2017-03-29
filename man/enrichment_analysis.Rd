@@ -3,27 +3,35 @@
 \name{enrichment_analysis}
 \alias{enrichment_analysis}
 \alias{plotEnrichCountHeatmap}
+\alias{plotEnrichment}
 \alias{plotFoldEnrichHeatmap}
-\alias{plotFoldEnrichment}
 \title{Enrichment analysis}
 \usage{
-plotFoldEnrichHeatmap(hmm, annotations, combinations = NULL, plot = TRUE)
+plotFoldEnrichHeatmap(hmm, annotations, what = "combinations",
+  combinations = NULL, marks = NULL, plot = TRUE, logscale = TRUE)
 
 plotEnrichCountHeatmap(hmm, annotation, bp.around.annotation = 10000,
   max.rows = 1000)
 
-plotFoldEnrichment(hmm, annotation, bp.around.annotation = 10000,
+plotEnrichment(hmm, annotation, bp.around.annotation = 10000,
   region = c("start", "inside", "end"), num.intervals = 20,
-  combinations = NULL)
+  what = "combinations", combinations = NULL, marks = NULL,
+  statistic = "fold", logscale = TRUE)
 }
 \arguments{
 \item{hmm}{A \code{\link{combinedMultiHMM}} or \code{\link{multiHMM}} object or a file that contains such an object.}
 
 \item{annotations}{A \code{list()} with \code{\link{GRanges}} objects containing coordinates of multiple annotations The names of the list entries will be used to name the return values.}
 
-\item{combinations}{A vector with combinations for which the fold enrichment will be calculated. If \code{NULL} all combinations will be considered.}
+\item{what}{One of \code{c('combinations','peaks','counts','transitions')} specifying on which feature the statistic is calculated.}
+
+\item{combinations}{A vector with combinations for which the enrichment will be calculated. If \code{NULL} all combinations will be considered.}
+
+\item{marks}{A vector with marks for which the enrichment is plotted. If \code{NULL} all marks will be considered.}
 
 \item{plot}{A logical indicating whether the plot or an array with the fold enrichment values is returned.}
+
+\item{logscale}{Set to \code{TRUE} to plot fold enrichment on log-scale. Ignored if \code{statistic = 'fraction'}.}
 
 \item{annotation}{A \code{\link{GRanges}} object with the annotation of interest.}
 
@@ -34,6 +42,8 @@ plotFoldEnrichment(hmm, annotation, bp.around.annotation = 10000,
 \item{region}{A combination of \code{c('start','inside','end')} specifying the region of the annotation for which the enrichment will be calculated. Select \code{'start'} if you have a point-sized annotation like transcription start sites. Select \code{c('start','inside','end')} if you have long annotations like genes.}
 
 \item{num.intervals}{Number of intervals for enrichment 'inside' of annotation.}
+
+\item{statistic}{The statistic to calculate. Either 'fold' for fold enrichments or 'fraction' for fraction of bins falling into the annotation.}
 }
 \value{
 A \code{\link[ggplot2:ggplot]{ggplot}} object containing the plot or a list() with \code{\link[ggplot2:ggplot]{ggplot}} objects if several plots are returned. For \code{plotFoldEnrichHeatmap} a named array with fold enrichments if \code{plot=FALSE}.
@@ -47,11 +57,11 @@ Plotting functions for enrichment analysis of \code{\link{multiHMM}} or \code{\l
 
 \item \code{plotEnrichCountHeatmap}: Plot read counts around annotation as heatmap.
 
-\item \code{plotFoldEnrichment}: Plot fold enrichment of combinatorial states around and inside of annotation.
+\item \code{plotEnrichment}: Plot fold enrichment of combinatorial states around and inside of annotation.
 }}
 \examples{
 ### Get an example multiHMM ###
-file <- system.file("data","multivariate_mode-mark_condition-SHR.RData",
+file <- system.file("data","multivariate_mode-combinatorial_condition-SHR.RData",
                     package="chromstaR")
 model <- get(load(file))
 
@@ -73,17 +83,17 @@ print(genes)
 ### Make the enrichment plots ###
 # We expect promoter [H3K4me3] and bivalent-promoter signatures [H3K4me3+H3K27me3]
 # to be enriched at transcription start sites.
-   plotFoldEnrichment(hmm = model, annotation = genes, bp.around.annotation = 15000) +
+   plotEnrichment(hmm = model, annotation = genes, bp.around.annotation = 15000) +
    ggtitle('Fold enrichment around genes') +
    xlab('distance from gene body')
  
 # Plot enrichment only at TSS. We make use of the fact that TSS is the start of a gene.
-   plotFoldEnrichment(model, genes, region = 'start') +
+   plotEnrichment(model, genes, region = 'start') +
    ggtitle('Fold enrichment around TSS') +
    xlab('distance from TSS in [bp]')
 # Note: If you want to facet the plot because you have many combinatorial states you
 # can do that with
-   plotFoldEnrichment(model, genes, region = 'start') +
+   plotEnrichment(model, genes, region = 'start') +
    facet_wrap(~ combination)
  
 # Another form of visualization that shows every TSS in a heatmap
@@ -95,6 +105,7 @@ print(genes)
 # Fold enrichment with different biotypes, showing that protein coding genes are
 # enriched with (bivalent) promoter combinations [H3K4me3] and [H3K4me3+H3K27me3],
 # while rRNA is enriched with the empty [] and repressive combinations [H3K27me3].
+   tss <- resize(genes, width = 3, fix = 'start')
    biotypes <- split(tss, tss$biotype)
    plotFoldEnrichHeatmap(model, annotations=biotypes) + coord_flip()
 

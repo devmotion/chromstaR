@@ -41,7 +41,7 @@
 #'# Obtain peak calls considering information from all replicates
 #'multi.model <- callPeaksReplicates(models, force.equal=TRUE, max.time=60, eps=1)
 #'
-callPeaksReplicates <- function(hmm.list, max.states=32, force.equal=FALSE, eps=0.01, max.iter=NULL, max.time=NULL, keep.posteriors=FALSE, num.threads=1, max.distance=0.2, per.chrom=TRUE) {
+callPeaksReplicates <- function(hmm.list, max.states=32, force.equal=FALSE, eps=0.01, max.iter=NULL, max.time=NULL, keep.posteriors=TRUE, num.threads=1, max.distance=0.2, per.chrom=TRUE) {
 
     ## Enable reanalysis of multivariate HMM
     if (class(hmm.list)==class.multivariate.hmm) {
@@ -64,8 +64,8 @@ callPeaksReplicates <- function(hmm.list, max.states=32, force.equal=FALSE, eps=
 
         ## Univariate replicateInfo
         ids <- sapply(hmms, function(x) { x$info$ID })
-        weight.univariate <- unlist(lapply(hmms, function(x) { x$weights['modified'] }))
-        total.count <- unlist(lapply(hmms, function(x) { sum(x$bins$counts) }))
+        weight.univariate <- sapply(hmms, function(x) { x$weights['modified'] })
+        total.count <- sapply(hmms, function(x) { sum(x$bins$counts) })
         info.df <- data.frame(total.count=total.count, weight.univariate=weight.univariate)
         if (!is.null(unlist(ids))) {
             rownames(info.df) <- ids
