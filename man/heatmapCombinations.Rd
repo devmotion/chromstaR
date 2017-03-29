@@ -4,12 +4,14 @@
 \alias{heatmapCombinations}
 \title{Plot a heatmap of combinatorial states}
 \usage{
-heatmapCombinations(model = NULL, marks = NULL)
+heatmapCombinations(model = NULL, marks = NULL, emissionProbs = NULL)
 }
 \arguments{
 \item{model}{A \code{\link{multiHMM}} object or file that contains such an object.}
 
 \item{marks}{A character vector with histone marks. If specified, \code{model} will be ignored.}
+
+\item{emissionProbs}{A matrix with emission probabilities where \code{dimnames(emissionProbs)} gives the state labels and marks. This option is helpful to plot probabilistic chromatin states (not part of \pkg{\link{chromstaR}}). If specified, \code{model} and \code{marks} will be ignored.}
 }
 \value{
 A \code{\link[ggplot2]{ggplot}} object.
@@ -21,7 +23,7 @@ Plot a heatmap that shows the binary presence/absence of marks for the different
 marks <- c('H3K4me3','H3K27me3','H4K20me1')
 heatmapCombinations(marks=marks)
 
-file <- system.file("data","multivariate_mode-mark_condition-SHR.RData",
+file <- system.file("data","multivariate_mode-combinatorial_condition-SHR.RData",
                     package="chromstaR")
 heatmapCombinations(file)
 

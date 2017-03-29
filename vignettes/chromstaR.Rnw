@@ -52,10 +52,9 @@ binned.data <- binReads(file, assembly=rn4_chrominfo, binsizes=1000,
 print(binned.data)
 @
 
-<<univariate_narrow_peak_calling, results='markup', eval=TRUE>>=
+<<univariate_narrow_peak_calling, results='markup', eval=TRUE, message=FALSE>>=
 ## === Step 2: Peak calling ===
-# We restrict the peak calling to 60 seconds to keep this example quick.
-model <- callPeaksUnivariate(binned.data, max.time=60, verbosity=0)
+model <- callPeaksUnivariate(binned.data, verbosity=0)
 @
 
 <<univariate_narrow_plotting, fig.width=6, fig.height=4, out.width='0.5\\textwidth'>>=
@@ -65,10 +64,21 @@ model <- callPeaksUnivariate(binned.data, max.time=60, verbosity=0)
 plotHistogram(model) + ggtitle('H3K4me3')
 @
 
+<<univariate_narrow_posterior, results='markup', message=FALSE, eval=TRUE>>=
+## === Step 4: Working with peaks ===
+# Get the number and average size of peaks
+length(model$peaks); mean(width(model$peaks))
+
+# Change the false discovery rate and get number of peaks
+model <- changeFDR(model, fdr=1e-4)
+length(model$peaks); mean(width(model$peaks))
+@
+
 <<univariate_narrow_export, results='hide', message=FALSE, eval=TRUE>>=
-## === Step 4: Export to genome browser ===
+## === Step 5: Export to genome browser ===
 # We can export peak calls and binned read counts with
-exportUnivariates(list(model), filename=tempfile(), what=c('peaks','counts'))
+exportPeaks(model, filename=tempfile())
+exportCounts(model, filename=tempfile())
 @
 \end{scriptsize}
 
@@ -95,10 +105,9 @@ binned.data <- binReads(file, assembly=rn4_chrominfo, binsizes=1000,
                         chromosomes='chr12')
 @
 
-<<univariate_broad_peak_calling, results='markup', eval=TRUE>>=
+<<univariate_broad_peak_calling, results='markup', eval=TRUE, message=FALSE>>=
 ## === Step 2: Peak calling ===
-# We restrict the peak calling to 60 seconds to keep this example quick.
-model <- callPeaksUnivariate(binned.data, max.time=60, verbosity=0)
+model <- callPeaksUnivariate(binned.data, verbosity=0)
 @
 
 <<univariate_broad_plotting, fig.width=6, fig.height=4, out.width='0.5\\textwidth'>>=
@@ -108,10 +117,22 @@ model <- callPeaksUnivariate(binned.data, max.time=60, verbosity=0)
 plotHistogram(model) + ggtitle('H3K27me3')
 @
 
+<<univariate_broad_posterior, results='markup', message=FALSE, eval=TRUE>>=
+## === Step 4: Working with peaks ===
+peaks <- model$peaks
+length(peaks); mean(width(peaks))
+
+# Change the false discovery rate and get number of peaks
+model <- changeFDR(model, fdr=1e-4)
+peaks <- model$peaks
+length(peaks); mean(width(peaks))
+@
+
 <<univariate_broad_export, results='hide', message=FALSE, eval=TRUE>>=
-## === Step 4: Export to genome browser ===
+## === Step 5: Export to genome browser ===
 # We can export peak calls and binned read counts with
-exportUnivariates(list(model), filename=tempfile(), what=c('peaks','counts'))
+exportPeaks(model, filename=tempfile())
+exportCounts(model, filename=tempfile())
 @
 
 <<univariate_broad_H4K20me1, echo=TRUE, results='hide', message=FALSE, fig.width=6, fig.height=4, out.width='0.5\\textwidth'>>=
@@ -128,20 +149,22 @@ plotHistogram(model) + ggtitle('H4K20me1')
 
 \subsection{Task 3: Peak calling for ATAC-seq, DNase-seq, FAIRE-seq, ...}
 
-Peak calling for ATAC-seq and DNase-seq is similar to the peak calling of a narrow histone modification (see section~\ref{sec:narrow}). FAIRE-seq experiments seem to exhibit a broad profile with our model, so the procedure is similar to the domain calling of a broad histone modification (see section~\ref{sec:broad}).
+Peak calling for ATAC-seq and DNase-seq is similar to the peak calling of a narrow histone modification (section~\ref{sec:narrow}). FAIRE-seq experiments seem to exhibit a broad profile with our model, so the procedure is similar to the domain calling of a broad histone modification (section~\ref{sec:broad}).
 
 \section{Multivariate analysis}
 \subsection{Task 1: Integrating multiple replicates}
 
 \Rpackage{chromstaR} can be used to call peaks with multiple replicates, without the need of prior merging. The underlying statistical model integrates information from all replicates to identify common peaks. It is, however, important to note that replicates with poor quality can affect the joint peak calling negatively. It is therefore recommended to first check the replicate quality and discard poor-quality replicates. The necessary steps for peak calling for an example ChIP-seq experiment with 4 replicates are detailed below.
 
+Please note that also the other tasks in this section (Task \ref{sec:Task2}, \ref{sec:Task3} and \ref{sec:Task4}) can handle multiple replicates via specification of the \Rfunction{experiment.table} parameter. The following example demonstrates how to explicitly use multiple replicates for peak calling and their correlation as a basic quality control.
+
 \begin{scriptsize}
-<<univariate_replicate_library, results='hide', message=FALSE, eval=TRUE>>=
+<<multivariate_replicate_library, results='hide', message=FALSE, eval=TRUE>>=
 library(chromstaR)
 @
 
-<<multivariate_replicate_binning, results='markup', message=FALSE, eval=TRUE>>=
-## === Step 1: Binning ===
+<<multivariate_replicate_preparation, results='markup', message=FALSE, eval=TRUE>>=
+#=== Step 1: Preparation ===
 # Let's get some example data with 3 replicates in spontaneous hypertensive rat (SHR)
 file.path <- system.file("extdata","euratrans", package='chromstaRData')
 files.good <- list.files(file.path, pattern="H3K27me3.*SHR.*bam$", full.names=TRUE)[1:3]
@@ -155,6 +178,16 @@ head(rn4_chrominfo)
 # Define experiment structure
 exp <- data.frame(file=files, mark='H3K27me3', condition='SHR', replicate=1:4,
                   pairedEndReads=FALSE, controlFiles=NA)
+
+# Peaks could now be called with
+# Chromstar(inputfolder=file.path, experiment.table=exp, outputfolder=tempdir(),
+#           mode = 'separate')
+# However, to get more information on the replicates we will choose
+# a more detailed workflow.
+@
+
+<<multivariate_replicate_binning, results='hide', message=FALSE, eval=TRUE>>=
+## === Step 2: Binning ===
 # We use bin size 1000bp and chromosome 12 to keep the example quick
 binned.data <- list()
 for (file in files) {
@@ -165,7 +198,7 @@ for (file in files) {
 @
 
 <<multivariate_replicate_univariate, results='hide', message=FALSE, eval=TRUE>>=
-## === Step 2: Univariate peak calling ===
+## === Step 3: Univariate peak calling ===
 # The univariate fit is obtained for each replicate
 models <- list()
 for (i1 in 1:length(binned.data)) {
@@ -174,7 +207,7 @@ for (i1 in 1:length(binned.data)) {
 @
 
 <<multivariate_replicate_peak_calling, results='markup', message=FALSE, eval=TRUE>>=
-## === Step 3: Check replicate correlation ===
+## === Step 4: Check replicate correlation ===
 # We run a multivariate peak calling on all 4 replicates
 # A warning is issued because replicate 4 is very different from the others
 multi.model <- callPeaksReplicates(models, max.time=60, eps=1)
@@ -183,22 +216,23 @@ print(multi.model$replicateInfo$correlation)
 @
 
 <<multivariate_replicate_peak_calling2, results='hide', message=FALSE, eval=TRUE>>=
-## === Step 4: Peak calling with replicates ===
+## === Step 5: Peak calling with replicates ===
 # We redo the previous step without the "bad" replicate
 # Also, we force all replicates to agree in their peak calls
 multi.model <- callPeaksReplicates(models[1:3], force.equal=TRUE, max.time=60)
 @
 
 <<multivariate_replicate_export, results='hide', message=FALSE, eval=TRUE>>=
-## === Step 5: Export to genome browser ===
+## === Step 6: Export to genome browser ===
 # Finally, we can export the results as BED file
-exportMultivariate(multi.model, filename=tempfile(), what=c('peaks','counts'))
+exportPeaks(multi.model, filename=tempfile())
+exportCounts(multi.model, filename=tempfile())
 @
 \end{scriptsize}
 
-\subsection{Task 2: Detecting differentially modified regions}
+\subsection{\label{sec:Task2}Task 2: Detecting differentially modified regions}
 
-\Rpackage{chromstaR} is extremely powerful in detecting differentially modified regions in two or more samples. The following example illustrates this on ChIP-seq data for H4K20me1 in brown norway (BN) and spontaneous hypertensive rat (SHR) in left-ventricle (lv) heart tissue. The mode of analysis is called \emph{condition}, because all conditions are analyzed simultaneously.
+\Rpackage{chromstaR} is extremely powerful in detecting differentially modified regions in two or more samples. The following example illustrates this on ChIP-seq data for H4K20me1 in brown norway (BN) and spontaneous hypertensive rat (SHR) in left-ventricle (lv) heart tissue. The mode of analysis is called \emph{differential}.
 
 \begin{scriptsize}
 <<multivariate_differential_library, results='hide', message=FALSE, eval=TRUE>>=
@@ -227,21 +261,21 @@ head(rn4_chrominfo)
 ## Run ChromstaR
 Chromstar(inputfolder, experiment.table=experiment_table_H4K20me1,
           outputfolder=outputfolder, numCPU=4, binsize=1000, assembly=rn4_chrominfo,
-          prefit.on.chr='chr12', chromosomes='chr12', mode='condition')
+          prefit.on.chr='chr12', chromosomes='chr12', mode='differential')
 @
 <<multivariate_differential_listfiles, results='markup', message=FALSE, eval=TRUE>>=
 ## Results are stored in 'outputfolder' and can be loaded for further processing
 list.files(outputfolder)
 model <- get(load(file.path(outputfolder,'multivariate',
-                            'multivariate_mode-condition_mark-H4K20me1.RData')))
+                            'multivariate_mode-differential_mark-H4K20me1.RData')))
 @
 
 <<multivariate_differential_stateBrewer, results='markup', message=TRUE, eval=TRUE>>=
 ## === Step 3: Construct differential and common states ===
-diff.states <- stateBrewer(experiment_table_H4K20me1, mode='condition',
+diff.states <- stateBrewer(experiment_table_H4K20me1, mode='differential',
                            differential.states=TRUE)
 print(diff.states)
-common.states <- stateBrewer(experiment_table_H4K20me1, mode='condition',
+common.states <- stateBrewer(experiment_table_H4K20me1, mode='differential',
                              common.states=TRUE)
 print(common.states)
 @
@@ -249,15 +283,15 @@ print(common.states)
 <<multivariate_differential_export, results='hide', message=FALSE, eval=TRUE>>=
 ## === Step 5: Export to genome browser ===
 # Export only differential states
-exportMultivariate(model, filename=tempfile(),
-                   what=c('peaks','counts','combinations'),
-                   include.states=diff.states)
+exportPeaks(model, filename=tempfile())
+exportCounts(model, filename=tempfile())
+exportCombinations(model, filename=tempfile(), include.states=diff.states)
 @
 \end{scriptsize}
 
-\subsection{Task 3: Finding combinatorial chromatin states}
+\subsection{\label{sec:Task3}Task 3: Finding combinatorial chromatin states}
 
-Most experimental studies that probe several histone modifications are interested in combinatorial chromatin states. An example of a simple combinatorial state would be [H3K4me3+H3K27me3], which is also frequently called ``bivalent promoter'', due to the simultaneous occurrence of the promoter marking H3K4me3 and the repressive H3K27me3. Finding combinatorial states with \Rpackage{chromstaR} is equivalent to a multivariate peak calling. The following code chunks demonstrate how to find bivalent promoters and do some simple analysis. The mode of analysis is called \emph{mark}, because all marks are analyzed simultaneously.
+Most experimental studies that probe several histone modifications are interested in combinatorial chromatin states. An example of a simple combinatorial state would be [H3K4me3+H3K27me3], which is also frequently called ``bivalent promoter'', due to the simultaneous occurrence of the promoter marking H3K4me3 and the repressive H3K27me3. Finding combinatorial states with \Rpackage{chromstaR} is equivalent to a multivariate peak calling. The following code chunks demonstrate how to find bivalent promoters and do some simple analysis. The mode of analysis is called \emph{combinatorial}.
 
 \begin{scriptsize}
 <<multivariate_combinatorial_library, results='hide', message=FALSE, eval=TRUE>>=
@@ -287,14 +321,14 @@ head(rn4_chrominfo)
 ## Run ChromstaR
 Chromstar(inputfolder, experiment.table=experiment_table_SHR,
           outputfolder=outputfolder, numCPU=4, binsize=1000, assembly=rn4_chrominfo,
-          prefit.on.chr='chr12', chromosomes='chr12', mode='mark')
+          prefit.on.chr='chr12', chromosomes='chr12', mode='combinatorial')
 @
 
 <<multivariate_combinatorial_listfiles, results='markup', message=FALSE, eval=TRUE, fig.width=4, fig.height=3, out.width='0.5\\textwidth'>>=
 ## Results are stored in 'outputfolder' and can be loaded for further processing
 list.files(outputfolder)
 model <- get(load(file.path(outputfolder,'multivariate',
-                            'multivariate_mode-mark_condition-SHR.RData')))
+                            'multivariate_mode-combinatorial_condition-SHR.RData')))
 # Obtain genomic frequencies for combinatorial states
 genomicFrequencies(model)
 # Plot transition probabilities and read count correlation
@@ -324,23 +358,24 @@ print(genes)
 <<multivariate_combinatorial_enrichment_plot1, results='markup', message=FALSE, eval=TRUE, fig.width=8, fig.height=4, out.width='0.8\\textwidth', fig.align='center'>>=
 # We expect promoter [H3K4me3] and bivalent-promoter signatures [H3K4me3+H3K27me3]
 # to be enriched at transcription start sites.
-plotFoldEnrichment(hmm = model, annotation = genes, bp.around.annotation = 15000) +
+plotEnrichment(hmm = model, annotation = genes, bp.around.annotation = 15000) +
   ggtitle('Fold enrichment around genes') +
   xlab('distance from gene body')
 # Plot enrichment only at TSS. We make use of the fact that TSS is the start of a gene.
-plotFoldEnrichment(model, genes, region = 'start') +
+plotEnrichment(model, genes, region = 'start') +
   ggtitle('Fold enrichment around TSS') +
   xlab('distance from TSS in [bp]')
 # Note: If you want to facet the plot because you have many combinatorial states you
 # can do that with
-plotFoldEnrichment(model, genes, region = 'start') +
+plotEnrichment(model, genes, region = 'start') +
   facet_wrap(~ combination) + ggtitle('Fold enrichment around TSS')
 @
 <<multivariate_combinatorial_enrichment_plot2, results='markup', message=FALSE, eval=TRUE, fig.width=8, fig.height=4, out.width='0.8\\textwidth', fig.align='center'>>=
 # Another form of visualization that shows every TSS in a heatmap
 tss <- resize(genes, width = 3, fix = 'start')
-plotEnrichCountHeatmap(model, tss) +
+plotEnrichCountHeatmap(model, tss, bp.around.annotation = 15000) +
   theme(strip.text.x = element_text(size=6)) +
+  scale_x_continuous(breaks=c(-10000,0,10000)) +
   ggtitle('Read count around TSS')
 @
 <<multivariate_combinatorial_enrichment_plot3, results='markup', message=FALSE, eval=TRUE, fig.width=8, fig.height=4, out.width='0.8\\textwidth', fig.align='center'>>=
@@ -393,8 +428,8 @@ Consider bivalent promoters defined by [H3K4me3+H3K27me3] at two different devel
 \Rfunction{Chromstar} can be run in 4 different modes:
 \begin{itemize}
 \item \emph{full}: Recommended mode if your (number of marks) * (number of conditions) is less or equal to 8. With 8 ChIP-seq experiments there are already $2^8 = 256$ combinatorial states which is the maximum that most computers can handle computationally for a human-sized genome at bin size 1000bp.
-\item \emph{condition}: Choose this mode if you are interested in highly significant differences between conditions. The computational limit for the number of conditions is $\sim 8$ for a human-sized genome. Combinatorial states are not as accurate as in mode \emph{mark} or \emph{full}.
-\item \textbf{DEFAULT} \emph{mark}: This mode will yield good combinatorial chromatin state calls for any number of marks and conditions. However, differences between conditions have more false positives than in mode \emph{condition} or \emph{full}.
+\item \textbf{DEFAULT} \emph{differential}: Choose this mode if you are interested in highly significant differences between conditions. The computational limit for the number of conditions is $\sim 8$ for a human-sized genome. Combinatorial states are not as accurate as in mode \emph{combinatorial} or \emph{full}.
+\item \emph{combinatorial}: This mode will yield good combinatorial chromatin state calls for any number of marks and conditions. However, differences between conditions have more false positives than in mode \emph{differential} or \emph{full}.
 \item \emph{separate}: Only replicates are processed in a multivariate manner. Combinatorial states are constructed by a simple post-hoc combination of peak calls.
 \end{itemize}
 
@@ -425,13 +460,13 @@ head(rn4_chrominfo)
 ## Run ChromstaR
 Chromstar(inputfolder, experiment.table=experiment_table,
           outputfolder=outputfolder, numCPU=4, binsize=1000, assembly=rn4_chrominfo,
-          prefit.on.chr='chr12', chromosomes='chr12', mode='condition')
+          prefit.on.chr='chr12', chromosomes='chr12', mode='differential')
 @
 <<combined_listfiles, results='markup', message=FALSE, eval=TRUE>>=
 ## Results are stored in 'outputfolder' and can be loaded for further processing
 list.files(outputfolder)
 model <- get(load(file.path(outputfolder,'combined',
-                            'combined_mode-condition.RData')))
+                            'combined_mode-differential.RData')))
 @
 
 <<combined_analysis, results='markup', message=FALSE, eval=TRUE>>=
@@ -474,8 +509,12 @@ print(genes)
 <<combined_enrichment_plot1, results='markup', message=FALSE, eval=TRUE, fig.width=8, fig.height=4, out.width='0.8\\textwidth', fig.align='center'>>=
 # We expect promoter [H3K4me3] and bivalent-promoter signatures [H3K4me3+H3K27me3]
 # to be enriched at transcription start sites.
-plots <- plotFoldEnrichment(hmm=model, annotation=genes, region='start')
+plots <- plotEnrichment(hmm=model, annotation=genes, region='start')
 plots[['BN']] + facet_wrap(~ combination) +
+  ggtitle('Fold enrichment around TSS') +
+  xlab('distance from TSS')
+plots <- plotEnrichment(hmm=model, annotation=genes, region='start', what='peaks')
+plots[['BN']] + facet_wrap(~ mark) +
   ggtitle('Fold enrichment around TSS') +
   xlab('distance from TSS')
 @
@@ -488,7 +527,6 @@ tss <- resize(genes, width = 3, fix = 'start')
 biotypes <- split(tss, tss$biotype)
 plots <- plotFoldEnrichHeatmap(model, annotations=biotypes)
 plots[['BN']] + coord_flip() + 
-  scale_fill_gradient(low='white', high='blue', limits=c(0,100)) + 
   ggtitle('Fold enrichment with different biotypes')
 @
 \end{scriptsize}
@@ -505,8 +543,8 @@ plots[['BN']] + coord_flip() +
 \item $\rightarrow$\textbf{combined}$\leftarrow$: \\ RData files with the combined results of the uni- and multivariate peak calling steps. This is what you want to use for downstream analyses. Contains \Rclass{combinedMultiHMM} objects.
 \begin{itemize}
 \item \emph{combined\_mode-separate.RData} Simple combination of peak calls (replicates considered) without multivariate analysis.
-\item \emph{combined\_mode-mark.RData} Combination of multivariate results for mode='mark'.
-\item \emph{combined\_mode-condition.RData} Combination of multivariate results for mode='condition'.
+\item \emph{combined\_mode-combinatorial.RData} Combination of multivariate results for mode='combinatorial'.
+\item \emph{combined\_mode-differential.RData} Combination of multivariate results for mode='differential'.
 \item \emph{combined\_mode-full.RData} Combination of multivariate results for mode='full'.
 \end{itemize}
 \item \textbf{multivariate}: \\ RData files with the results of the multivariate peak calling step. Contains \Rclass{multiHMM} objects.
@@ -519,29 +557,29 @@ plots[['BN']] + coord_flip() +
 
 \subsection{\label{sec:FAQ_peaks}The peak calls are too lenient. Can I adjust the strictness of the peak calling?}
 
-The strictness of the peak calling can be controlled with a posterior cutoff. The Hidden Markov Model gives posterior probabilities for each peak, and based on these probabilites the model decides if a peak is present or not by picking the state with the highest probability. This way of peak calling leads to very lenient peak calls, and for some applications it may be desirable to obtain only very clear peaks. This can be achieved by setting a posterior cutoff. To follow the below example, please first run step 1 and 2 from section~\ref{sec:Task4}. !!Note that in general more peaks are obtained with a stricter cutoff, as this will lead to the split-up of previously broader peaks into several smaller, more well defined peaks.
+The strictness of the peak calling can be controlled with a false discovery rate. The Hidden Markov Model gives posterior probabilities for each peak, and based on these probabilites the model decides if a peak is present or not by picking the state with the highest probability. This way of peak calling leads to very lenient peak calls, and for some applications it may be desirable to obtain only very clear peaks. This can be achieved by setting a false discovery rate (which is a cutoff on the maximum posterior probability within each peak). To follow the below example, please first run step 1 and 2 from section~\ref{sec:Task4}.
 
 \begin{scriptsize}
 <<faq_postcutoff, results='markup', message=FALSE, eval=TRUE>>=
 model <- get(load(file.path(outputfolder,'combined',
-                            'combined_mode-condition.RData')))
+                            'combined_mode-differential.RData')))
 # Set a strict cutoff close to 1
-model2 <- changePostCutoff(model, post.cutoff=0.999)
+model2 <- changeFDR(model, fdr=1e-4)
 ## Compare the number and width of peaks before and after cutoff adjustment
 length(model$segments); mean(width(model$segments))
 length(model2$segments); mean(width(model2$segments))
 @
 \end{scriptsize}
 
-It is even possible to adjust the posterior cutoff differently for the different marks or conditions.
+It is even possible to adjust the false discovery rate differently for the different marks or conditions.
 
 \begin{scriptsize}
 <<faq_postcutoff_single, results='markup', message=FALSE, eval=TRUE>>=
 # Set a stricter cutoff for H3K4me3 than for H3K27me3
-cutoffs <- c(0.8, 0.8, 0.8, 0.8, 0.999, 0.999, 0.999, 0.999)
-names(cutoffs) <- model$info$ID
-print(cutoffs)
-model2 <- changePostCutoff(model, post.cutoff=cutoffs)
+fdrs <- c(0.1, 0.1, 0.1, 0.1, 0.01, 0.01, 0.01, 0.01)
+names(fdrs) <- model$info$ID
+print(fdrs)
+model2 <- changeFDR(model, fdr=fdrs)
 ## Compare the number and width of peaks before and after cutoff adjustment
 length(model$segments); mean(width(model$segments))
 length(model2$segments); mean(width(model2$segments))
@@ -552,8 +590,9 @@ length(model2$segments); mean(width(model2$segments))
 
 You were interested in combinatorial state differences as in section~\ref{sec:Task4} and checked the results in a genome browser. You found that some differences are convincing by eye and some are not. There are several possibilities to explore:
 \begin{enumerate}
-\item Run \Rfunction{Chromstar} in mode='condition' (instead of mode='mark') and see if the results improve.
+\item Run \Rfunction{Chromstar} in mode='differential' (instead of mode='combinatorial') and see if the results improve.
 \item You can play with the ``differential.score'' (see section~\ref{sec:Task4}, step 3) and export only differences with a high score. A differential score around 1 means that one modification is different, a score close to 2 means that two modifications are different etc. The score is calculated as the sum of differences in posterior probabilities between marks.
+\item Set a strict false discovery rate (previous example) to obtain only high confidence peaks.
 \item Check for bad replicates that are very different from the rest and exclude them prior to the analysis.
 \end{enumerate}
 
@@ -569,9 +608,8 @@ heatmapCombinations(marks=c('H3K4me3', 'H3K27me3', 'H3K36me3', 'H3K27Ac'))
 
 \section{Session Info}
 \begin{scriptsize}
-<<>>=
-sessionInfo()
-warnings()
+<<sessionInfo, eval=TRUE, results="asis">>=
+toLatex(sessionInfo())
 @
 \end{scriptsize}
 

@@ -1,4 +1,4 @@
-#' Wrapper function for the \code{\link{chromstaR}} package
+#' Wrapper function for the \pkg{\link{chromstaR}} package
 #' 
 #' This function performs \code{\link[chromstaR:binReads]{binning}}, \code{\link[chromstaR:callPeaksUnivariate]{univariate peak calling}} and \code{\link[chromstaR:callPeaksMultivariate]{multivariate peak calling}} from a list of input files.
 #' 
@@ -11,10 +11,10 @@
 #' @param assembly A \code{data.frame} or tab-separated file with columns 'chromosome' and 'length'. Alternatively a character specifying the assembly, see \code{\link[GenomeInfoDb]{fetchExtendedChromInfoFromUCSC}} for available assemblies. Specifying an assembly is only necessary when importing BED files. BAM files are handled automatically.
 #' @inheritParams readBedFileAsGRanges
 #' @inheritParams callPeaksUnivariate
-#' @param mode One of \code{c('condition','mark','full')}. The modes determine how the multivariate part is run. Here is some advice which mode to use:
+#' @param mode One of \code{c('differential','combinatorial','full')}. The modes determine how the multivariate part is run. Here is some advice which mode to use:
 #' \describe{
-#'   \item{\code{mark}}{Each condition is analyzed separately with all marks combined. Choose this mode if you have more than ~7 conditions or you want to have a high sensitivity for detecting combinatorial states. Differences between conditions will be more noisy (more false positives) than in mode \code{'condition'} but combinatorial states are more precise.}
-#'   \item{\code{condition}}{Each mark is analyzed separately with all conditions combined. Choose this mode if you are interested in accurate differences. Combinatorial states will be more noisy (more false positives) than in mode \code{'mark'} but differences are more precise.}
+#'   \item{\code{combinatorial}}{Each condition is analyzed separately with all marks combined. Choose this mode if you have more than ~7 conditions or you want to have a high sensitivity for detecting combinatorial states. Differences between conditions will be more noisy (more false positives) than in mode \code{'differential'} but combinatorial states are more precise.}
+#'   \item{\code{differential}}{Each mark is analyzed separately with all conditions combined. Choose this mode if you are interested in accurate differences. Combinatorial states will be more noisy (more false positives) than in mode \code{'combinatorial'} but differences are more precise.}
 #'   \item{\code{full}}{Full analysis of all marks and conditions combined. Best of both, but: Choose this mode only if (number of conditions * number of marks \eqn{\le} 8), otherwise it might be too slow or crash due to memory limitations.}
 #'   \item{\code{separate}}{Only replicates are analyzed multivariately. Combinatorial states are constructed by a simple post-hoc combination of peak calls.}
 #' }
@@ -42,10 +42,10 @@
 #'## Run ChromstaR
 #'Chromstar(inputfolder, experiment.table=experiment_table_SHR,
 #'          outputfolder=outputfolder, numCPU=4, binsize=1000, assembly=rn4_chrominfo,
-#'          prefit.on.chr='chr12', chromosomes='chr12', mode='mark', eps.univariate=1,
+#'          prefit.on.chr='chr12', chromosomes='chr12', mode='combinatorial', eps.univariate=1,
 #'          eps.multivariate=1)
 #'
-Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='mark', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL, keep.posteriors.per.state=FALSE) {
+Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NULL, numCPU=1, binsize=1000, assembly=NULL, chromosomes=NULL, remove.duplicate.reads=TRUE, min.mapq=10, prefit.on.chr=NULL, eps.univariate=0.1, max.time=NULL, max.iter=5000, read.cutoff.absolute=500, keep.posteriors=TRUE, mode='differential', max.states=128, per.chrom=TRUE, eps.multivariate=0.01, exclusive.table=NULL, keep.posteriors.per.state=FALSE) {
   
     #========================
     ### General variables ###
@@ -77,7 +77,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
   
     ## Read in experiment table if necessary ##
     if (is.character(experiment.table)) {
-        exp.table <- utils::read.table(experiment.table, header=TRUE, comment.char='#')
+        exp.table <- utils::read.table(experiment.table, header=TRUE, comment.char='#', stringsAsFactors=FALSE)
     } else if (is.data.frame(experiment.table)) {
         exp.table <- experiment.table
     }
@@ -99,16 +99,16 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     names(inputfilenames) <- basename(inputfiles)
     
     ## Check usage of modes
-    if (!mode %in% c('separate','mark','condition','full')) {
+    if (!mode %in% c('separate','combinatorial','differential','full')) {
         stop("Unknown mode '", mode, "'.")
     }
     marks <- setdiff(unique(as.character(exp.table[,'mark'])), 'input')
     conditions <- unique(as.character(exp.table[,'condition']))
-    if (length(conditions) < 2 & conf[['mode']] == 'condition') {
-        stop("Mode 'condition' can only be used if two or more conditions are present.")
+    if (length(conditions) < 2 & conf[['mode']] == 'differential') {
+        stop("Mode 'differential' can only be used if two or more conditions are present.")
     }
-    if (length(marks) < 2 & conf[['mode']] == 'mark') {
-        stop("Mode 'mark' can only be used if two or more marks are present.")
+    if (length(marks) < 2 & conf[['mode']] == 'combinatorial') {
+        stop("Mode 'combinatorial' can only be used if two or more marks are present.")
     }
     
     ## Check if assembly must be present
@@ -147,8 +147,8 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     cat("- BROWSERFILES: Bed files for upload to the UCSC genome browser. It contains files with combinatorial states (*_combinations.bed.gz) and underlying peak calls (*_peaks.bed.gz). !!Always check the *_peaks.bed.gz files if you are satisfied with the peak calls. If not, there are ways to make the calls stricter (see section FAQ of the vignette).\n", file=savename, append=TRUE)
     cat("- -->combined<--: RData files with the combined results of the uni- and multivariate peak calling steps. This is what you want to use for downstream analyses. Contains combinedMultiHMM objects.\n", file=savename, append=TRUE)
     cat("    - combined_mode-separate.RData: Simple combination of peak calls (replicates considered) without multivariate analysis.\n", file=savename, append=TRUE)
-    cat("    - combined_mode-mark.RData: Combination of multivariate results for mode='mark'.\n", file=savename, append=TRUE)
-    cat("    - combined_mode-condition.RData: Combination of multivariate results for mode='condition'.\n", file=savename, append=TRUE)
+    cat("    - combined_mode-combinatorial.RData: Combination of multivariate results for mode='combinatorial'.\n", file=savename, append=TRUE)
+    cat("    - combined_mode-differential.RData: Combination of multivariate results for mode='differential'.\n", file=savename, append=TRUE)
     cat("    - combined_mode-full.RData: Combination of multivariate results for mode='full'.\n", file=savename, append=TRUE)
     cat("- multivariate: RData files with the results of the multivariate peak calling step. Contains multiHMM objects.\n", file=savename, append=TRUE)
     cat("- PLOTS: Several plots that are produced by default. Please check the plots in subfolder \"univariate-distributions\" for irregularities (see section \"Univariate Analysis\" of the vignette).\n", file=savename, append=TRUE)
@@ -170,10 +170,24 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     ## Write the experiment table to file
     utils::write.table(exp.table, file=file.path(outputfolder, 'experiment_table.tsv'), col.names=TRUE, quote=FALSE, row.names=FALSE, sep='\t')
     
+    ## Parallelization ##
+    if (numcpu > 1) {
+        ptm <- startTimedMessage("Setting up parallel execution with ", numcpu, " threads ...")
+        cl <- parallel::makeCluster(numcpu)
+        doParallel::registerDoParallel(cl)
+        on.exit(
+            if (conf[['numCPU']] > 1) {
+                parallel::stopCluster(cl)
+            }
+        )
+        stopTimedMessage(ptm)
+    }
+  
   
     #==============
     ### Binning ###
     #==============
+    messageU("Binning the data")
     ### Get chromosome lengths ###
     ## Get first bam file
     bamfile <- grep('bam$', datafiles, value=TRUE)[1]
@@ -194,8 +208,8 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
                 ## Get first bed file
                 bedfile <- grep('bed$|bed.gz$', datafiles, value=TRUE)[1]
                 if (!is.na(bedfile)) {
-                    firstline <- read.table(bedfile, nrows=1)
-                    if (grepl('^chr',firstline[1,1])) {
+                    firstlines <- read.table(bedfile, nrows=10)
+                    if (grepl('^chr',firstlines[1,1])) {
                         df <- df.chroms[,c('UCSC_seqlevel','UCSC_seqlength')]
                     } else {
                         df <- df.chroms[,c('NCBI_seqlevel','UCSC_seqlength')]
@@ -249,29 +263,41 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
             })
         }
     }
-    for (file in datafiles) {
-        parallel.helper(file, input=FALSE)
+    ## Unparallelized
+#     for (file in datafiles) {
+#         parallel.helper(file, input=FALSE)
+#     }
+#     for (file in inputfiles) {
+#         parallel.helper(file, input=TRUE)
+#     }
+    ## Parallelized
+    if (numcpu > 1) {
+        ptm <- startTimedMessage("Binning data ...")
+        temp <- foreach (file = datafiles, .packages=c("chromstaR")) %dopar% {
+            parallel.helper(file, input=FALSE)
+        }
+        stopTimedMessage(ptm)
+    } else {
+        for (file in datafiles) {
+            parallel.helper(file, input=FALSE)
+        }
     }
-    for (file in inputfiles) {
-        parallel.helper(file, input=TRUE)
+    if (numcpu > 1) {
+        ptm <- startTimedMessage("Binning input ...")
+        temp <- foreach (file = inputfiles, .packages=c("chromstaR")) %dopar% {
+            parallel.helper(file, input=TRUE)
+        }
+        stopTimedMessage(ptm)
+    } else {
+        for (file in inputfiles) {
+            parallel.helper(file, input=TRUE)
+        }
     }
     
     #==============================
     ### Univariate peak calling ###
     #==============================
-    ## Parallelization ##
-    if (numcpu > 1) {
-        ptm <- startTimedMessage("Setting up parallel execution with ", numcpu, " threads ...")
-        cl <- parallel::makeCluster(numcpu)
-        doParallel::registerDoParallel(cl)
-        on.exit(
-            if (conf[['numCPU']] > 1) {
-                parallel::stopCluster(cl)
-            }
-        )
-        stopTimedMessage(ptm)
-    }
-  
+    messageU("Calling univariate peaks")
     if (!file.exists(unipath)) { dir.create(unipath) }
     if (!file.exists(uniplotpath)) { dir.create(uniplotpath) }
     files <- file.path(binpath, filenames)
@@ -340,7 +366,7 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
             if (!file.exists(savename)) {
                 mask <- names(files) == markcond
                 repfiles <- files[mask]
-                states <- stateBrewer(exp.table[mask,], mode='mark')
+                states <- stateBrewer(exp.table[mask,], mode='combinatorial')
                 repmodel <- callPeaksMultivariate(repfiles, use.states=states, max.states=conf[['max.states']], eps=conf[['eps.multivariate']], max.iter=conf[['max.iter']], max.time=conf[['max.time']], num.threads=conf[['numCPU']], per.chrom=conf[['per.chrom']], keep.posteriors=conf[['keep.posteriors']])
                 ptm <- startTimedMessage("Saving to file ", savename, " ...")
                 save(repmodel, file=savename)
@@ -371,21 +397,22 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
         ptm <- startTimedMessage("Plotting read count correlation ...")
         char.per.cm <- 10
         legend.cm <- 3
+        tiles.per.cm <- 0.66
+        min.tiles <- 5
+        width <- max(min.tiles, length(combined.model$info$ID)) / tiles.per.cm + max(sapply(combined.model$info$ID, nchar)) / char.per.cm + legend.cm
+        height <- max(min.tiles, length(combined.model$info$ID)) / tiles.per.cm + max(sapply(combined.model$info$ID, nchar)) / char.per.cm
         savename <- file.path(plotpath, 'read-count-correlation.pdf')
         ggplt <- heatmapCountCorrelation(combined.model, cluster=FALSE)
-        width <- length(combined.model$info$ID) + max(sapply(combined.model$info$ID, nchar)) / char.per.cm + legend.cm
-        height <- length(combined.model$info$ID) + max(sapply(combined.model$info$ID, nchar)) / char.per.cm
         ggsave(savename, plot=ggplt, width=width, height=height, limitsize=FALSE, units='cm')
         savename <- file.path(plotpath, 'read-count-correlation-clustered.pdf')
         ggplt <- heatmapCountCorrelation(combined.model, cluster=TRUE)
-        width <- length(combined.model$info$ID) + max(sapply(combined.model$info$ID, nchar)) / char.per.cm + legend.cm
-        height <- length(combined.model$info$ID) + max(sapply(combined.model$info$ID, nchar)) / char.per.cm
         ggsave(savename, plot=ggplt, width=width, height=height, limitsize=FALSE, units='cm')
         stopTimedMessage(ptm)
       
         #-------------------------
         ## Export browser files ##
         #-------------------------
+        messageU("Exporting browser files")
         if (!file.exists(browserpath)) { dir.create(browserpath) }
         savename <- file.path(browserpath, paste0('combined_mode-', modename))
         trackname <- paste0('mode-', modename)
@@ -408,76 +435,81 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
 
     ## Plot helper ##
     plothelper <- function(savename, multimodel) {
-        ptm <- startTimedMessage("Making plots ...")
         char.per.cm <- 10
         legend.cm <- 3
-
         savename2 <- paste0(savename, '_transitionMatrix.pdf')
-        ggplt <- suppressMessages( heatmapTransitionProbs(multimodel) )
-        width <- length(levels(multimodel$bins$combination)) + max(sapply(levels(multimodel$bins$combination), nchar)) / char.per.cm + legend.cm
-        height <- length(levels(multimodel$bins$combination)) + max(sapply(levels(multimodel$bins$combination), nchar)) / char.per.cm + 1
-        ggsave(savename2, plot=ggplt, width=width, height=height, limitsize=FALSE, units='cm')
-        stopTimedMessage(ptm)
+        if (!file.exists(savename2)) {
+            ptm <- startTimedMessage("Making plots ...")
+            multimodel <- suppressMessages( loadHmmsFromFiles(multimodel, check.class=class.multivariate.hmm)[[1]] )
+            ggplt <- suppressMessages( heatmapTransitionProbs(multimodel) )
+            width <- length(levels(multimodel$bins$combination)) + max(sapply(levels(multimodel$bins$combination), nchar)) / char.per.cm + legend.cm
+            height <- length(levels(multimodel$bins$combination)) + max(sapply(levels(multimodel$bins$combination), nchar)) / char.per.cm + 1
+            ggsave(savename2, plot=ggplt, width=width, height=height, limitsize=FALSE, units='cm')
+            stopTimedMessage(ptm)
+        }
     }
   
     ## Run multivariate depending on mode
     #--------------------
     if (mode == 'full') {
-        savename <- file.path(multipath, paste0('multivariate_mode-', mode, '.RData'))
-        if (!file.exists(savename)) {
+        multifile <- file.path(multipath, paste0('multivariate_mode-', mode, '.RData'))
+        savename <- file.path(plotpath, paste0('multivariate_mode-', mode))
+        if (!file.exists(multifile)) {
             files <- file.path(unipath, filenames)
             states <- stateBrewer(exp.table, mode=mode, exclusive.table=conf[['exclusive.table']])
             multimodel <- callPeaksMultivariate(files, use.states=states, max.states=conf[['max.states']], eps=conf[['eps.multivariate']], max.iter=conf[['max.iter']], max.time=conf[['max.time']], num.threads=conf[['numCPU']], per.chrom=conf[['per.chrom']], keep.posteriors=conf[['keep.posteriors']], keep.posteriors.per.state=conf[['keep.posteriors.per.state']])
-            ptm <- startTimedMessage("Saving to file ", savename, " ...")
-            save(multimodel, file=savename)
+            ptm <- startTimedMessage("Saving to file ", multifile, " ...")
+            save(multimodel, file=multifile)
             stopTimedMessage(ptm)
+            ## Plot transitions
+            plothelper(savename, multimodel)
         } else {
-            multimodel <- loadHmmsFromFiles(savename, check.class=class.multivariate.hmm)[[1]]
+            ## Plot transitions
+            plothelper(savename, multifile)
         }
-        ## Plot transition and correlations
-        savename <- file.path(plotpath, paste0('multivariate_mode-', mode))
-        plothelper(savename, multimodel)
     
     #---------------------------
-    } else if (mode == 'mark') {
+    } else if (mode == 'combinatorial') {
         for (condition in conditions) {
-            messageU("condition = ", condition, underline='-')
-            savename <- file.path(multipath, paste0('multivariate_mode-', mode, '_condition-', condition, '.RData'))
-            if (!file.exists(savename)) {
+            messageU("condition = ", condition, underline='-', overline='-')
+            multifile <- file.path(multipath, paste0('multivariate_mode-', mode, '_condition-', condition, '.RData'))
+            savename <- file.path(plotpath, paste0('multivariate_mode-', mode, '_condition-', condition))
+            if (!file.exists(multifile)) {
                 mask <- exp.table[,'condition'] == condition
                 files <- file.path(unipath, filenames)[mask]
                 states <- stateBrewer(exp.table[mask,], mode=mode, exclusive.table=conf[['exclusive.table']])
                 multimodel <- callPeaksMultivariate(files, use.states=states, max.states=conf[['max.states']], eps=conf[['eps.multivariate']], max.iter=conf[['max.iter']], max.time=conf[['max.time']], num.threads=conf[['numCPU']], per.chrom=conf[['per.chrom']], keep.posteriors=conf[['keep.posteriors']], keep.posteriors.per.state=conf[['keep.posteriors.per.state']])
-                ptm <- startTimedMessage("Saving to file ", savename, " ...")
-                save(multimodel, file=savename)
+                ptm <- startTimedMessage("Saving to file ", multifile, " ...")
+                save(multimodel, file=multifile)
                 stopTimedMessage(ptm)
+                ## Plot transitions
+                plothelper(savename, multimodel)
             } else {
-                multimodel <- loadHmmsFromFiles(savename, check.class=class.multivariate.hmm)[[1]]
+                ## Plot transitions
+                plothelper(savename, multifile)
             }
-            ## Plot transition and correlations
-            savename <- file.path(plotpath, paste0('multivariate_mode-', mode, '_condition-', condition))
-            plothelper(savename, multimodel)
         }
     
     #--------------------------------
-    } else if (mode == 'condition') {
+    } else if (mode == 'differential') {
         for (mark in marks) {
-            messageU("mark = ", mark, underline='-')
-            savename <- file.path(multipath, paste0('multivariate_mode-', mode, '_mark-', mark, '.RData'))
-            if (!file.exists(savename)) {
+            messageU("mark = ", mark, underline='-', overline='-')
+            multifile <- file.path(multipath, paste0('multivariate_mode-', mode, '_mark-', mark, '.RData'))
+            savename <- file.path(plotpath, paste0('multivariate_mode-', mode, '_mark-', mark))
+            if (!file.exists(multifile)) {
                 mask <- exp.table[,'mark'] == mark
                 files <- file.path(unipath, filenames)[mask]
                 states <- stateBrewer(exp.table[mask,], mode=mode, exclusive.table=conf[['exclusive.table']])
                 multimodel <- callPeaksMultivariate(files, use.states=states, max.states=conf[['max.states']], eps=conf[['eps.multivariate']], max.iter=conf[['max.iter']], max.time=conf[['max.time']], num.threads=conf[['numCPU']], per.chrom=conf[['per.chrom']], keep.posteriors=conf[['keep.posteriors']], keep.posteriors.per.state=conf[['keep.posteriors.per.state']])
-                ptm <- startTimedMessage("Saving to file ", savename, " ...")
-                save(multimodel, file=savename)
+                ptm <- startTimedMessage("Saving to file ", multifile, " ...")
+                save(multimodel, file=multifile)
                 stopTimedMessage(ptm)
+                ## Plot transitions
+                plothelper(savename, multimodel)
             } else {
-                multimodel <- loadHmmsFromFiles(savename, check.class=class.multivariate.hmm)[[1]]
+                ## Plot transitions
+                plothelper(savename, multifile)
             }
-            ## Plot transition and correlations
-            savename <- file.path(plotpath, paste0('multivariate_mode-', mode, '_mark-', mark))
-            plothelper(savename, multimodel)
         }
     }
 
@@ -487,12 +519,6 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     #================================
     messageU("Combining multivariate HMMs")
     multifiles <- list.files(multipath, full.names=TRUE, pattern=paste0('mode-',mode))
-    if (mode=='condition') {
-        names(multifiles) <- marks
-    }
-    if (mode=='mark') {
-        names(multifiles) <- conditions
-    }
 
     if (!file.exists(combipath)) { dir.create(combipath) }
     savename <- file.path(combipath, paste0('combined_mode-', mode, '.RData'))
@@ -504,10 +530,26 @@ Chromstar <- function(inputfolder, experiment.table, outputfolder, configfile=NU
     } else {
         combined.model <- loadHmmsFromFiles(savename, check.class=class.combined.multivariate.hmm)[[1]]
     }
+    ## Plot correlations
+    ptm <- startTimedMessage("Plotting read count correlation ...")
+    char.per.cm <- 10
+    legend.cm <- 3
+    tiles.per.cm <- 0.66
+    min.tiles <- 5
+    width <- max(min.tiles, length(combined.model$info$ID)) / tiles.per.cm + max(sapply(combined.model$info$ID, nchar)) / char.per.cm + legend.cm
+    height <- max(min.tiles, length(combined.model$info$ID)) / tiles.per.cm + max(sapply(combined.model$info$ID, nchar)) / char.per.cm
+    savename <- file.path(plotpath, 'read-count-correlation.pdf')
+    ggplt <- heatmapCountCorrelation(combined.model, cluster=FALSE)
+    ggsave(savename, plot=ggplt, width=width, height=height, limitsize=FALSE, units='cm')
+    savename <- file.path(plotpath, 'read-count-correlation-clustered.pdf')
+    ggplt <- heatmapCountCorrelation(combined.model, cluster=TRUE)
+    ggsave(savename, plot=ggplt, width=width, height=height, limitsize=FALSE, units='cm')
+    stopTimedMessage(ptm)
   
     #-------------------------
     ## Export browser files ##
     #-------------------------
+    messageU("Exporting browser files")
     if (!file.exists(browserpath)) { dir.create(browserpath) }
     savename <- file.path(browserpath, paste0('combined_mode-', mode))
     trackname <- paste0('mode-', mode)

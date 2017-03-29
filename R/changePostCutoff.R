@@ -1,4 +1,4 @@
-#' Change the false discovery rate of a Hidden Markov Model
+#' Change the posterior cutoff of a Hidden Markov Model
 #'
 #' Adjusts the peak calls of a \code{\link{uniHMM}} or \code{\link{multiHMM}} object with the given posterior cutoff.
 #'
@@ -64,7 +64,7 @@ changePostCutoff.multivariate <- function(model, post.cutoff) {
 
     # Check if replicates have the same post.cutoff value
     reps <- sub('-rep.*', '', model$info$ID)
-    if (any(sapply(split(post.cutoff, reps), function(x) { Reduce('==', x) }) == FALSE)) {
+    if (any(sapply(split(post.cutoff, reps), function(x) { Reduce('&', x==x[1]) }) == FALSE)) {
         stop("Replicates must have the same post.cutoff value.")
     }
     
@@ -80,7 +80,7 @@ changePostCutoff.multivariate <- function(model, post.cutoff) {
         for (icol in 1:ncol(post)) {
             post.thresholded[,icol] <- post[,icol] >= threshold[icol]
         }
-        states <- factor(bin2dec(model$bins$posteriors >= threshold), levels=levels(model$bins$state))
+        states <- factor(bin2dec(post.thresholded), levels=levels(model$bins$state))
         model$bins$state <- states
         ## Combinations
         if (!is.null(model$bins$combination)) {
@@ -109,10 +109,27 @@ changePostCutoff.multivariate <- function(model, post.cutoff) {
         multiHMM$bins$state <- factor(states)
         multiHMM$bins$posteriors <- post
         multiHMM$mapping <- mapping
+        multiHMM$peaks <- model$peaks
         model <- combineMultivariates(list(multiHMM), mode='full')
     } else {
         stop("Supply either a uniHMM, multiHMM or combinedMultiHMM object.")
     }
+    
+    ## Redo peaks
+    ptm <- startTimedMessage("Recalculating peaks ...")
+    binstates <- dec2bin(model$segments$state, colnames=colnames(post))
+    segments <- model$segments
+    mcols(segments) <- NULL
+    for (icol in 1:ncol(binstates)) {
+        segments$peakScores <- model$segments$peakScores[,icol]
+        segments$state <- binstates[,icol]
+        red.df <- suppressMessages( collapseBins(as.data.frame(segments), column2collapseBy = 'state') )
+        red.df <- red.df[red.df$state == 1,]
+        red.df$state <- NULL
+        model$peaks[[icol]] <- methods::as(red.df, 'GRanges')
+    }
+    stopTimedMessage(ptm)
+    
     ## Return model
     model$post.cutoff <- threshold
     return(model)
@@ -151,10 +168,11 @@ changePostCutoff.univariate <- function(model, post.cutoff) {
     ptm <- startTimedMessage("Making segmentation ...")
     gr <- model$bins
     df <- as.data.frame(gr)
-    red.df <- suppressMessages(collapseBins(df, column2collapseBy='state', columns2average=c('score'), columns2drop=c('width',grep('posteriors', names(df), value=TRUE), 'counts')))
-    red.gr <- GRanges(seqnames=red.df[,1], ranges=IRanges(start=red.df[,2], end=red.df[,3]), strand=red.df[,4], state=red.df[,'state'], score=red.df[,'mean.score'])
-    model$segments <- red.gr
-    seqlengths(model$segments) <- seqlengths(model$bins)[seqlevels(model$segments)]
+    red.df <- suppressMessages(collapseBins(df, column2collapseBy='state', columns2drop=c('width', 'posterior.modified', grep('posteriors', names(df), value=TRUE), 'counts')))
+    segments <- methods::as(red.df, 'GRanges')
+    model$peaks <- segments[segments$state == 'modified']
+    model$peaks$state <- NULL
+    seqlengths(model$peaks) <- seqlengths(model$bins)[seqlevels(model$peaks)]
     stopTimedMessage(ptm)
 
     ## Return model
