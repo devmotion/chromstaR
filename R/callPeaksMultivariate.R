@@ -198,7 +198,6 @@ callPeaksMultivariate <- function(hmms, use.states, max.states=NULL, per.chrom=T
 }
 
 
-<<<<<<< HEAD
 runMultivariate <- function(bins, info, comb.states, use.states, distributions, weights, correlationMatrix, correlationMatrixInverse, determinant, max.iter, max.time, eps, num.threads, keep.posteriors, keep.posteriors.per.state, keep.densities, transitionProbs.initial=NULL, startProbs.initial=NULL, verbosity=1) {
 
     ptm <- startTimedMessage("Starting multivariate HMM with ", length(comb.states), " combinatorial states")
