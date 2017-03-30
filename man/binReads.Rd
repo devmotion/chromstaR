@@ -67,4 +67,3 @@ binned <- binReads(file, experiment.table=experiment_table,
 print(binned)
 
 }
-
