@@ -5,12 +5,12 @@
 \title{Wrapper function for the \pkg{\link{chromstaR}} package}
 \usage{
 Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
-  numCPU = 1, binsize = 1000, assembly = NULL, chromosomes = NULL,
-  remove.duplicate.reads = TRUE, min.mapq = 10, prefit.on.chr = NULL,
-  eps.univariate = 0.1, max.time = NULL, max.iter = 5000,
-  read.cutoff.absolute = 500, keep.posteriors = TRUE,
+  numCPU = 1, binsize = 1000, stepsize = binsize/5, assembly = NULL,
+  chromosomes = NULL, remove.duplicate.reads = TRUE, min.mapq = 10,
+  prefit.on.chr = NULL, eps.univariate = 0.1, max.time = NULL,
+  max.iter = 5000, read.cutoff.absolute = 500, keep.posteriors = TRUE,
   mode = "differential", max.states = 128, per.chrom = TRUE,
-  eps.multivariate = 0.01, exclusive.table = NULL)
+  eps.multivariate = 0.01, exclusive.table = NULL, max.exclusive = 1)
 }
 \arguments{
 \item{inputfolder}{Folder with either BAM or BED-6 (see \code{\link{readBedFileAsGRanges}} files.}
@@ -24,6 +24,8 @@ Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
 \item{numCPU}{Number of threads to use for the analysis. Beware that more CPUs also means more memory is needed. If you experience crashes of R with higher numbers of this parameter, leave it at \code{numCPU=1}.}
 
 \item{binsize}{An integer specifying the bin size that is used for the analysis.}
+
+\item{stepsize}{An integer specifying the step size for analysis.}
 
 \item{assembly}{A \code{data.frame} or tab-separated file with columns 'chromosome' and 'length'. Alternatively a character specifying the assembly, see \code{\link[GenomeInfoDb]{fetchExtendedChromInfoFromUCSC}} for available assemblies. Specifying an assembly is only necessary when importing BED files. BAM files are handled automatically.}
 
@@ -59,7 +61,9 @@ Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
 
 \item{eps.multivariate}{Convergence threshold for the multivariate Baum-Welch algorithm.}
 
-\item{exclusive.table}{A \code{data.frame} or tab-separated file with columns 'mark' and 'group'. Histone marks with the same group will be treated as mutually exclusive.}
+\item{exclusive.table}{A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as exclusive. Combinations contain at most @code{max.exclusive} histone marks of the same group.}
+
+\item{max.exlusive}{The maximum number of histone marks of the same group in @code{exclusive.table}.}
 }
 \value{
 \code{NULL}
@@ -84,4 +88,3 @@ Chromstar(inputfolder, experiment.table=experiment_table_SHR,
          eps.multivariate=1)
 
 }
-

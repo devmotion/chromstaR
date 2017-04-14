@@ -5,7 +5,8 @@
 \title{Obtain combinatorial states from experiment table}
 \usage{
 stateBrewer(experiment.table, mode, differential.states = FALSE,
-  common.states = FALSE, exclusive.table = NULL, binary.matrix = NULL)
+  common.states = FALSE, exclusive.table = NULL, max.exclusive = 1,
+  binary.matrix = NULL)
 }
 \arguments{
 \item{experiment.table}{A \code{data.frame} specifying the experiment structure. See \code{\link{experiment.table}}.}
@@ -55,4 +56,3 @@ stateBrewer(experiment_table, mode='full', exclusive.table=excl)
 \author{
 Aaron Taudt
 }
-
