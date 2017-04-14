@@ -48,8 +48,9 @@ exp <- data.frame(file=files, mark='H3K27me3', condition='SHR', replicate=1:3,
 # We use bin size 1000bp and chromosome 12 to keep the example quick
 binned.data <- list()
 for (file in files) {
- binned.data[[basename(file)]] <- binReads(file, binsizes=1000, experiment.table=exp,
-                                              assembly=rn4_chrominfo, chromosomes='chr12')
+ binned.data[[basename(file)]] <- binReads(file, binsizes=1000, stepsizes=500,
+                                           experiment.table=exp,
+                                           assembly=rn4_chrominfo, chromosomes='chr12')
 }
 # The univariate fit is obtained for each replicate
 models <- list()
@@ -60,10 +61,9 @@ for (i1 in 1:length(binned.data)) {
 multi.model <- callPeaksReplicates(models, force.equal=TRUE, max.time=60, eps=1)
 
 }
-\author{
-Aaron Taudt
-}
 \seealso{
 \code{\link{multiHMM}}, \code{\link{callPeaksUnivariate}}, \code{\link{callPeaksMultivariate}}
 }
-
+\author{
+Aaron Taudt
+}

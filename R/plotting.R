@@ -96,7 +96,7 @@ plotHistograms <- function(model, ...) {
 heatmapCountCorrelation <- function(model, cluster=TRUE) {
 
     model <- suppressMessages( loadHmmsFromFiles(model, check.class=c(class.multivariate.hmm, class.combined.multivariate.hmm))[[1]] )
-    cr <- cor(model$bins$counts)
+    cr <- cor(model$bins$counts.rpkm)
     df <- reshape2::melt(cr, value.name='correlation')
     if (cluster) {
         hc <- stats::hclust(stats::dist(cr))
@@ -216,7 +216,7 @@ heatmapCombinations <- function(model=NULL, marks=NULL, emissionProbs=NULL) {
 #'data(experiment_table)
 #'binned <- binReads(file, experiment.table=experiment_table,
 #'                   assembly=rn4_chrominfo, binsizes=1000,
-#'                   chromosomes='chr12')
+#'                   stepsizes=500, chromosomes='chr12')
 #'plotHistogram(binned)
 #'## Fit the univariate Hidden Markov Model
 #'hmm <- callPeaksUnivariate(binned, max.time=60, eps=1)
@@ -229,7 +229,7 @@ plotHistogram <- function(model, state=NULL, chromosomes=NULL, start=NULL, end=N
     if (is(model, 'GRanges')) {
         bins <- model
     } else if (is(model, class.univariate.hmm)) {
-        bins <- model$bins
+        bins <- model$bincounts
     }
 
     # Select the rows to plot
@@ -252,7 +252,7 @@ plotHistogram <- function(model, state=NULL, chromosomes=NULL, start=NULL, end=N
     if (!is.null(state)) {
         selectmask <- selectmask & bins$state==state
     }
-    counts <- bins$counts[selectmask]
+    counts <- bins$counts[selectmask, '0']
 
     # Plot the histogram
     rightxlim <- get_rightxlim(counts)

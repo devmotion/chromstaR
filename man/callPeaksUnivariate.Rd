@@ -77,17 +77,16 @@ data(rn4_chrominfo)
 data(experiment_table)
 binned <- binReads(file, experiment.table=experiment_table,
                   assembly=rn4_chrominfo, binsizes=1000,
-                  chromosomes='chr12')
+                  stepsizes=500, chromosomes='chr12')
 ## Fit the univariate Hidden Markov Model
 hmm <- callPeaksUnivariate(binned, max.time=60, eps=1)
 ## Check if the fit is ok
 plotHistogram(hmm)
 
 }
-\author{
-Aaron Taudt, Maria Colome Tatche
-}
 \seealso{
 \code{\link{uniHMM}}, \code{\link{callPeaksMultivariate}}
 }
-
+\author{
+Aaron Taudt, Maria Colome Tatche
+}
