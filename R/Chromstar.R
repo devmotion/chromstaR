@@ -23,8 +23,8 @@
 #' @param per.chrom If set to \code{TRUE} chromosomes will be treated separately in the multivariate part. This tremendously speeds up the calculation but results might be noisier as compared to \code{per.chrom=FALSE}, where all chromosomes are concatenated for the HMM.
 #' @param eps.univariate Convergence threshold for the univariate Baum-Welch algorithm.
 #' @param eps.multivariate Convergence threshold for the multivariate Baum-Welch algorithm.
-#' @param exclusive.table A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as exclusive. Combinations contain at most @code{max.exclusive} histone marks of the same group.
-#' @param max.exlusive The maximum number of histone marks of the same group in @code{exclusive.table}.
+#' @param exclusive.table A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as exclusive. Combinations contain at most \code{max.exclusive} histone marks of the same group.
+#' @param max.exlusive The maximum number of histone marks of the same group in \code{exclusive.table}.
 #' @return \code{NULL}
 #' @import foreach
 #' @import doParallel
