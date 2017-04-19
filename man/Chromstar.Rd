@@ -62,9 +62,9 @@ Chromstar(inputfolder, experiment.table, outputfolder, configfile = NULL,
 
 \item{eps.multivariate}{Convergence threshold for the multivariate Baum-Welch algorithm.}
 
-\item{exclusive.table}{A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as exclusive. Combinations contain at most @code{max.exclusive} histone marks of the same group.}
+\item{exclusive.table}{A \code{data.frame} or tab-separated text file with columns 'mark' and 'group'. Histone marks with the same group will be treated as exclusive. Combinations contain at most \code{max.exclusive} histone marks of the same group.}
 
-\item{max.exlusive}{The maximum number of histone marks of the same group in @code{exclusive.table}.}
+\item{max.exlusive}{The maximum number of histone marks of the same group in \code{exclusive.table}.}
 }
 \value{
 \code{NULL}
