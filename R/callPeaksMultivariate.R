@@ -219,7 +219,7 @@ runMultivariate <- function(bins, info, comb.states, use.states, distributions, 
     ws2 <- unlist(lapply(weights,"[",2))
     ws3 <- unlist(lapply(weights,"[",3))
     ws <- ws1 / (ws2+ws1)
-    get.posteriors <- keep.posteriors | keep.posteriors.per.state | !is.null(post.cutoff)
+    get.posteriors <- TRUE
     if (get.posteriors) { lenPosteriors <- length(bins) * length(comb.states) } else { lenPosteriors <- 1 }
     if (keep.densities) { lenDensities <- length(bins) * length(comb.states) } else { lenDensities <- 1 }
 
