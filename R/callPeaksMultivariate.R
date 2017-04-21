@@ -423,21 +423,17 @@ runMultivariate <- function(bins, info, comb.states, use.states, distributions, 
         }
         result$bins$state <- factor(states.step, levels=state.levels)
         if (get.posteriors) {
-            ptm <- startTimedMessage("Saving posteriors ...")
-	    
 	    # Posteriors per state
 	    if (keep.posteriors.per.state) {
-		result$bins$posteriors.per.state <- hmm$posteriors
+		result$bins$posteriors.per.state <- stepbins$posteriors
 	    }
 
 	    # Posteriors per sample
-	    if (keep.posteriors) {
-                binstates <- dec2bin(hmm$comb.states, ndigits=hmm$num.modifications)
-                post.per.track <- stepbins$posteriors %*% binstates
-                colnames(post.per.track) <- result$info$ID
-                result$bins$posteriors <- post.per.track
-	    }
-
+	    ptm <- startTimedMessage("Transforming posteriors to `per sample` representation ...")
+	    binstates <- dec2bin(hmm$comb.states, ndigits=hmm$num.modifications)
+	    post.per.track <- stepbins$posteriors %*% binstates
+	    colnames(post.per.track) <- result$info$ID
+	    result$bins$posteriors <- post.per.track
             result$bins$peakScores <- getPeakScores(result$bins)
             result$bins$differential.score <- differentialScoreSum(result$bins$peakScores, result$info)
             stopTimedMessage(ptm)
@@ -453,10 +449,10 @@ runMultivariate <- function(bins, info, comb.states, use.states, distributions, 
             result$bins$combination <- result$bins$state
         }
     ## Segmentation
-    result$segments <- multivariateSegmentation(result$bins, column2collapseBy='state')
-    if (!keep.posteriors) {
-        result$bins$posteriors <- NULL
-    }
+        result$segments <- multivariateSegmentation(result$bins, column2collapseBy='state')
+    	if (!keep.posteriors) {
+            result$bins$posteriors <- NULL
+        }
     ## Peaks
         result$peaks <- list()
         for (i1 in 1:ncol(result$segments$peakScores)) {
