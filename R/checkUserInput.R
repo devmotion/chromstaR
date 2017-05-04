@@ -107,6 +107,11 @@ check.experiment.table <- function(experiment.table) {
     if (any(grepl(weak.punct, replicates)) | any(grepl('[[:space:]]', replicates))) {
         stop("Column 'replicate' of the experiment.table cannot contain special characters or spaces.")
     }
+    IDs <- paste0(experiment.table$mark, '-', experiment.table$condition, '-rep', experiment.table$replicate)
+    tab <- table(IDs)
+    if (any(duplicated(IDs))) {
+        stop("Duplicated IDs detected. Check your experiment.table: ", paste(paste0(names(tab), ' (', tab, ')'), collapse = ', '))
+    }
     
     return(err)
 }
