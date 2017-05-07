@@ -52,7 +52,7 @@
 callPeaksUnivariate <- function(binned.data, input.data=NULL, prefit.on.chr=NULL, short=TRUE, eps=0.1, init="standard", max.time=NULL, max.iter=5000, num.trials=1, eps.try=NULL, num.threads=1, read.cutoff=TRUE, read.cutoff.quantile=1, read.cutoff.absolute=500, max.mean=Inf, post.cutoff=0.5, control=FALSE, keep.posteriors=FALSE, keep.densities=FALSE, verbosity=1) {
 
     if (class(binned.data) == 'character') { 
-        message("Loading file ",binned.data)
+        messageU("Loading file ",binned.data, overline="_", underline=NULL)
         binned.data <- loadHmmsFromFiles(binned.data)[[1]]
     }
     if (!is.null(input.data)) {
@@ -81,7 +81,7 @@ callPeaksUnivariate <- function(binned.data, input.data=NULL, prefit.on.chr=NULL
         model <- callPeaksUnivariateAllChr(binned.data=binned.data, input.data=input.data, eps=eps, init=init, max.time=max.time, max.iter=max.iter, num.trials=num.trials, eps.try=eps.try, num.threads=num.threads, read.cutoff=read.cutoff, read.cutoff.quantile=read.cutoff.quantile, read.cutoff.absolute=read.cutoff.absolute, max.mean=max.mean, post.cutoff=post.cutoff, control=control, keep.posteriors=keep.posteriors, keep.densities=FALSE, verbosity=verbosity)
     } else {
 
-        message("Fitting on chromosome ", prefit.on.chr)
+        messageU("Fitting on chromosome ", prefit.on.chr, ":", overline='-', underline=NULL)
         pre.binned.data <- binned.data[seqnames(binned.data)==prefit.on.chr]
         if (!is.null(input.data)) {
             pre.input.data <- input.data[seqnames(input.data)==prefit.on.chr]
@@ -95,6 +95,7 @@ callPeaksUnivariate <- function(binned.data, input.data=NULL, prefit.on.chr=NULL
         }
         model <- pre.model
         model$bins <- binned.data
+        messageU("Obtaining states for all chromosomes:", overline='-', underline=NULL)
         model <- suppressWarnings( callPeaksUnivariateAllChr(binned.data=model, input.data=input.data, eps=eps, max.time=max.time, max.iter=max.iter, num.threads=num.threads, read.cutoff=read.cutoff, read.cutoff.quantile=read.cutoff.quantile, read.cutoff.absolute=read.cutoff.absolute, max.mean=max.mean, post.cutoff=post.cutoff, control=control, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity) )
 
     }
@@ -140,9 +141,6 @@ callPeaksUnivariate <- function(binned.data, input.data=NULL, prefit.on.chr=NULL
 #' @importFrom S4Vectors Rle runmean
 callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, init="standard", max.time=NULL, max.iter=NULL, num.trials=1, eps.try=NULL, num.threads=1, read.cutoff=TRUE, read.cutoff.quantile=1, read.cutoff.absolute=500, max.mean=Inf, post.cutoff=0.5, control=FALSE, keep.posteriors=FALSE, keep.densities=FALSE, verbosity=1) {
 
-    ### Define cleanup behaviour ###
-    on.exit(.C("C_univariate_cleanup"))
-
     ### Intercept user input ###
     if (check.positive(eps)!=0) stop("argument 'eps' expects a positive numeric")
     if (is.null(max.time)) { max.time <- -1 } else if (check.nonnegative.integer(max.time)!=0) { stop("argument 'max.time' expects a non-negative integer or NULL") }
@@ -170,7 +168,6 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
     }
     numstates <- length(state.labels)
     iniproc <- which(init==c("standard","random","empiric")) # transform to int
-    offsets <- dimnames(binned.data$counts)[[2]]
 
     ### Assign initial parameters ###
     if (class(binned.data) == class.univariate.hmm) {
@@ -199,30 +196,32 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
     numbins <- length(binned.data)
     binsize <- width(binned.data)[1]
     if (keep.densities) { lenDensities <- numbins * numstates } else { lenDensities <- 1 }
+    offsets <- dimnames(binned.data$counts)[[2]]
     
     ### Arrays for finding maximum posterior for each bin between offsets
     ## Make bins with offset
     ptm <- startTimedMessage("Making bins with offsets ...")
     if (length(offsets) > 1) {
-        stepbins <- suppressMessages( fixedWidthBins(chrom.lengths = seqlengths(binned.data), binsizes = as.numeric(offsets[2]))[[1]] )
+        stepbins <- suppressMessages( fixedWidthBins(chrom.lengths = seqlengths(binned.data), binsizes = as.numeric(offsets[2]), chromosomes = unique(seqnames(binned.data)))[[1]] )
     } else {
         stepbins <- binned.data
         mcols(stepbins) <- NULL
     }
     bins <- binned.data
     mcols(bins) <- NULL
-    aposteriors.step <- array(0, dim = c(length(stepbins), numstates, 2), dimnames = list(bin=NULL, state=state.labels, offset=c('previousOffsets', 'currentOffset')))
-    acounts.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset')))
-    amaxPosterior.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset')))
-    astates.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset')))
+    aposteriors.step <- array(0, dim = c(length(stepbins), numstates, 2), dimnames = list(bin=NULL, state=state.labels, offset=c('previousOffsets', 'currentOffset'))) # to store posteriors for current and max-of-previous offsets
+    acounts.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset'))) # to store counts for current and max-of-previous offsets
+    amaxPosterior.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset'))) # to store maximum posterior for current and max-of-previous offsets
+    astates.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset'))) # to store states for current and max-of-previous offsets
+    stopTimedMessage(ptm)
     
     ### Loop over offsets ###
     for (ioffset in 1:length(offsets)) {
         offset <- offsets[ioffset]
         counts <- binned.data$counts[,offset, drop=FALSE]
         if (ioffset > 1) {
-            messageU("Obtaining states for step size = ", offset, overline = '-', underline = NULL)
-            ## Run only one iteration (no updating) if we are already over ioffset=1
+            ptm.offset <- startTimedMessage("Obtaining states for offset = ", offset, " ...")
+            ## Run only one iteration (no updating) if we are already over ioffset==1
             hmm <- result
             A.initial <- hmm$transitionProbs
             proba.initial <- hmm$startProbs
@@ -231,11 +230,12 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
             continue.from.univariate.hmm <- TRUE
             max.iter <- 1
             verbosity <- 0
+            num.trials <- 1
         }
     
         ### Input correction ###
         if (!is.null(input.data)) {
-            ptm <- startTimedMessage("Correcting read counts for input ...")
+            if (ioffset == 1) { ptm <- startTimedMessage("Correcting read counts for input ...") }
             if (is.character(input.data)) {
                 input.data <- loadHmmsFromFiles(input.data)[[1]]
             }
@@ -249,12 +249,12 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
             # Correction factor
             inputf <- S4Vectors::Rle(1, length=length(input.data))
             mean.input.counts <- mean(inputcounts[inputcounts>0])
-            mask.0 <- inputcounts > 0
+            mask.0 <- as.vector(inputcounts > 0)
             inputf[mask.0] <- mean.input.counts / as.numeric(S4Vectors::runmean(S4Vectors::Rle(inputcounts), k=15, endrule='constant'))[mask.0]
             inputf[inputf > 1.5] <- 1
             inputf <- as.numeric(inputf)
             counts <- round(counts * inputf)
-            stopTimedMessage(ptm)
+            if (ioffset == 1) { stopTimedMessage(ptm) }
         }
     
         ### Check if there are counts in the data, otherwise HMM will blow up ###
@@ -277,7 +277,7 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
                 numfiltered <- length(which(mask))
             }
         }
-        if (numfiltered > 0) {
+        if (numfiltered > 0 & ioffset == 1) {
             message("Replaced read counts > ",read.cutoff.absolute, " by ",read.cutoff.absolute," in ",numfiltered," bins to enhance performance (option 'read.cutoff').")
         }
     
@@ -299,12 +299,13 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
         }
         
         ## Call univariate in a for loop to enable multiple trials
-        if (verbosity==0) {
-            ptm <- startTimedMessage("Fitting Hidden Markov Model ...")
+        if (verbosity==0 & ioffset == 1) {
+            ptm <- startTimedMessage("Running Baum-Welch for offset = ", offset, " ...")
         }
         modellist <- list()
         for (i_try in 1:num.trials) {
             if (verbosity>=1) message("------------------------------------ Try ",i_try," of ",num.trials," -------------------------------------")
+            on.exit(.C("C_univariate_cleanup"))
             hmm <- .C("C_univariate_hmm",
                 counts = as.integer(counts), # int* O
                 num.bins = as.integer(numbins), # int* T
@@ -345,7 +346,7 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
             # Set init procedure to random
             iniproc <- which('random'==c("standard","random","empiric")) # transform to int
         }
-        if (verbosity==0) {
+        if (verbosity==0 & ioffset == 1) {
             stopTimedMessage(ptm)
         }
     
@@ -357,11 +358,12 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
         }
     
         if (eps != eps.try) {
-            if (verbosity==0) {
+            if (verbosity==0 & ioffset == 1) {
                 ptm <- startTimedMessage("Refining Hidden Markov Model ...")
             }
             # Rerun the HMM with different epsilon and initial parameters from trial run
             if (verbosity>=1) message("------------------------- Rerunning try ",indexmax," with eps = ",eps," -------------------------")
+            on.exit(.C("C_univariate_cleanup"))
             hmm <- .C("C_univariate_hmm",
                 counts = as.integer(counts), # int* O
                 num.bins = as.integer(numbins), # int* T
@@ -391,7 +393,7 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
                 read.cutoff = as.integer(max(counts)), # int* read_cutoff
                 verbosity = as.integer(verbosity) # int* verbosity
             )
-            if (verbosity==0) {
+            if (verbosity==0 & ioffset == 1) {
                 stopTimedMessage(ptm)
             }
         }
@@ -446,7 +448,7 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
                 class(result) <- class.univariate.hmm
         }
         
-        ptm <- startTimedMessage("Maximizing over offsets ...")
+        if (ioffset == 1) { ptm <- startTimedMessage("Collecting counts and posteriors ...") }
         ## Store counts and posteriors in list
         dim(hmm$posteriors) <- c(numbins, numstates)
         dimnames(hmm$posteriors) <- list(bin=NULL, state=state.labels)
@@ -455,52 +457,54 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
             densities <- hmm$densities
         }
         
-        ## Inflate posteriors to new offset
+        ## Inflate posteriors, states, counts to new offset
         bins.shift <- suppressWarnings( shift(bins, shift = as.numeric(offset)) )
         ind <- findOverlaps(stepbins, bins.shift)
         aposteriors.step[ind@from, , 'currentOffset'] <- hmm$posteriors[ind@to, , drop=FALSE]
-        acounts.step[ind@from, 'currentOffset'] <- hmm$counts[ind@to]
+        acounts.step[ind@from, 'currentOffset'] <- hmm$counts[ind@to, drop=FALSE]
         astates.step[ind@from, 'currentOffset'] <- hmm$states[ind@to]
         amaxPosterior.step[ind@from, 'currentOffset'] <- hmm$maxPosterior[ind@to]
         
         ## Sum counts
-        acounts.step[, 'previousOffsets'] <- rowSums(acounts.step)
+        acounts.step[, 'previousOffsets'] <- acounts.step[, 'previousOffsets', drop=FALSE] + acounts.step[, 'currentOffset', drop=FALSE]
         
         ## Find offset that maximizes the posteriors for each bin
-        # Start stuff to call C code
-            # Work with changing dimensions to avoid copies being made
-            dim_amaxPosterior.step <- dim(amaxPosterior.step)
-            dimnames_amaxPosterior.step <- dimnames(amaxPosterior.step)
-            dim(amaxPosterior.step) <- NULL
-            z <- .C("C_array2D_which_max",
-                    array2D = amaxPosterior.step,
-                    dim = as.integer(dim_amaxPosterior.step),
-                    ind_max = integer(dim_amaxPosterior.step[1]),
-                    value_max = double(dim_amaxPosterior.step[1]))
-            dim(amaxPosterior.step) <- dim_amaxPosterior.step
-            dimnames(amaxPosterior.step) <- dimnames_amaxPosterior.step
-            ind <- z$ind_max
-        # End stuff to call C code
+        ##-- Start stuff to call C code
+        # Work with changing dimensions to avoid copies being made
+        dim_amaxPosterior.step <- dim(amaxPosterior.step)
+        dimnames_amaxPosterior.step <- dimnames(amaxPosterior.step)
+        dim(amaxPosterior.step) <- NULL
+        z <- .C("C_array2D_which_max",
+                array2D = amaxPosterior.step,
+                dim = as.integer(dim_amaxPosterior.step),
+                ind_max = integer(dim_amaxPosterior.step[1]),
+                value_max = double(dim_amaxPosterior.step[1]))
+        dim(amaxPosterior.step) <- dim_amaxPosterior.step
+        dimnames(amaxPosterior.step) <- dimnames_amaxPosterior.step
+        ind <- z$ind_max
+        ##-- End stuff to call C code
         for (i1 in 1:2) {
             mask <- ind == i1
             aposteriors.step[mask, , 'previousOffsets'] <- aposteriors.step[mask,,i1, drop=FALSE]
             astates.step[mask, 'previousOffsets'] <- astates.step[mask,i1, drop=FALSE]
             amaxPosterior.step[mask, 'previousOffsets'] <- amaxPosterior.step[mask,i1, drop=FALSE]
         }
-        stopTimedMessage(ptm)
+        if (ioffset == 1) { stopTimedMessage(ptm) }
         
-        rm(hmm)
+        if (ioffset > 1) {
+            stopTimedMessage(ptm.offset)
+        }
+        
+        rm(hmm, ind)
     } # loop over offsets
     rm(amaxPosterior.step, astates.step)
         
     # Average and normalize counts to RPKM
-    ptm <- startTimedMessage("Collecting counts and posteriors over offsets ...")
-    counts.step <- acounts.step[, 'previousOffsets'] / ncol(acounts.step)
+    counts.step <- acounts.step[, 'previousOffsets'] / length(offsets)
     rm(acounts.step)
     counts.step <- rpkm.vector(counts.step, binsize = binsize)
     stepbins$posteriors <- aposteriors.step[,,'previousOffsets']
     rm(aposteriors.step)
-    stopTimedMessage(ptm)
     
     ## Get states ##
     ptm <- startTimedMessage("Calculating states from posteriors ...")
@@ -554,7 +558,6 @@ callPeaksUnivariateAllChr <- function(binned.data, input.data=NULL, eps=0.01, in
     result$peaks$state <- NULL
     result$segments <- NULL
         
-      
     # Return results
     return(result)
 }
