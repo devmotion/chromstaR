@@ -17,6 +17,7 @@
 #' @param max.iter The maximum number of iterations for the Baum-Welch algorithm. The default \code{NULL} is no limit.
 #' @param keep.densities If set to \code{TRUE} (default=\code{FALSE}), densities will be available in the output. This should only be needed debugging.
 #' @param verbosity Verbosity level for the fitting procedure. 0 - No output, 1 - Iterations are printed.
+#' @param temp.savedir A directory where to store intermediate results if \code{per.chrom=TRUE}.
 #' @return A \code{\link{multiHMM}} object.
 #' @seealso \code{\link{multiHMM}}, \code{\link{callPeaksUnivariate}}, \code{\link{callPeaksReplicates}}
 #' @import doParallel
@@ -50,7 +51,7 @@
 #'heatmapTransitionProbs(multimodel)
 #'heatmapCountCorrelation(multimodel)
 #'
-callPeaksMultivariate <- function(hmms, use.states, max.states=NULL, per.chrom=TRUE, chromosomes=NULL, eps=0.01, keep.posteriors=FALSE, num.threads=1, max.time=NULL, max.iter=NULL, keep.densities=FALSE, verbosity=1) {
+callPeaksMultivariate <- function(hmms, use.states, max.states=NULL, per.chrom=TRUE, chromosomes=NULL, eps=0.01, keep.posteriors=FALSE, num.threads=1, max.time=NULL, max.iter=NULL, keep.densities=FALSE, verbosity=1, temp.savedir=NULL) {
 
     ## Intercept user input
     if (!is.null(use.states)) {
@@ -143,7 +144,12 @@ callPeaksMultivariate <- function(hmms, use.states, max.states=NULL, per.chrom=T
     p <- prepareMultivariate(hmms, use.states=use.states, max.states=max.states, chromosomes=chromosomes)
 
     if (is.null(chromosomes)) {
-        chromosomes <- intersect(seqlevels(p$bins), unique(seqnames(p$bins)))
+        chromosomes <- intersect(seqlevels(p$bincounts), unique(seqnames(p$bincounts)))
+    }
+    if (!is.null(temp.savedir)) {
+        if (!file.exists(temp.savedir)) {
+            dir.create(temp.savedir)
+        }
     }
 
     ## Run multivariate per chromosome
@@ -167,50 +173,73 @@ callPeaksMultivariate <- function(hmms, use.states, max.states=NULL, per.chrom=T
         if (num.threads > 1) {
             ptm <- startTimedMessage("Running multivariate ...")
             models <- foreach (chrom = chromosomes, .packages='chromstaR') %dopar% {
+                bincounts <- p$bincounts[seqnames(p$bincounts)==chrom]
                 bins <- p$bins[seqnames(p$bins)==chrom]
-                model <- runMultivariate(binned.data=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
-                tempsavename <- tempfile()
-                save(model, file=tempsavename)
-                rm(model); gc()
-                tempsavename
+                if (!is.null(temp.savedir)) {
+                    temp.savename <- file.path(temp.savedir, paste0('chromosome_', chrom, '.RData'))
+                    if (!file.exists(temp.savename)) {
+                        model <- runMultivariate(binned.data=bincounts, stepbins=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
+                        save(model, file=temp.savename)
+                        rm(model); gc()
+                    }
+                    temp.savename
+                } else {
+                    model <- runMultivariate(binned.data=bincounts, stepbins=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
+                    model
+                }
             }
             stopTimedMessage(ptm)
         } else {
             models <- list()
             for (chrom in chromosomes) {
                 ptm <- messageU("Chromosome = ", chrom, overline="-", underline=NULL)
+                bincounts <- p$bincounts[seqnames(p$bincounts)==chrom]
                 bins <- p$bins[seqnames(p$bins)==chrom]
-                model <- runMultivariate(binned.data=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
+                if (!is.null(temp.savedir)) {
+                    temp.savename <- file.path(temp.savedir, paste0('chromosome_', chrom, '.RData'))
+                    if (!file.exists(temp.savename)) {
+                        model <- runMultivariate(binned.data=bincounts, stepbins=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
+                        ptm <- startTimedMessage("Saving chromosome ", chrom, " to temporary file ", temp.savename, " ...")
+                        save(model, file=temp.savename)
+                        rm(model); gc()
+                        stopTimedMessage(ptm)
+                    }
+                    models[[as.character(chrom)]] <- temp.savename
+                } else {
+                    model <- runMultivariate(binned.data=bincounts, stepbins=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
+                    models[[as.character(chrom)]] <- model
+                }
                 message("Time spent for chromosome = ", chrom, ":", appendLF=FALSE)
                 stopTimedMessage(ptm)
-                tempsavename <- tempfile()
-                ptm <- startTimedMessage("Saving chromosome ", chrom, " to temporary file ", tempsavename, " ...")
-                save(model, file=tempsavename)
-                rm(model); gc()
-                stopTimedMessage(ptm)
-                models[[as.character(chrom)]] <- tempsavename
             }
         }
 
         # Merge chromosomes into one multiHMM
         ptm <- startTimedMessage("Merging chromosomes ...")
-        models <- as.character(models) # make sure 'models' is a character vector with filenames and not a list()
+        if (!is.null(temp.savedir)) {
+            models <- as.character(models) # make sure 'models' is a character vector with filenames and not a list()
+        }
         model <- suppressMessages( mergeChroms(models) )
         stopTimedMessage(ptm)
 
     ## Run multivariate for all chromosomes
     } else {
 
-        model <- runMultivariate(binned.data=p$bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=num.threads, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
+        model <- runMultivariate(binned.data=p$bincounts, stepbins=p$bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=num.threads, keep.posteriors=keep.posteriors, keep.densities=keep.densities, verbosity=verbosity)
 
     }
 
+    if (!is.null(temp.savedir)) {
+        if (file.exists(temp.savedir)) {
+            unlink(temp.savedir, recursive = TRUE)
+        }
+    }
     return(model)
 
 }
 
 
-runMultivariate <- function(binned.data, info, comb.states, use.states, distributions, weights, correlationMatrix, correlationMatrixInverse, determinant, max.iter, max.time, eps, num.threads, keep.posteriors, keep.densities, transitionProbs.initial=NULL, startProbs.initial=NULL, verbosity=1) {
+runMultivariate <- function(binned.data, stepbins, info, comb.states, use.states, distributions, weights, correlationMatrix, correlationMatrixInverse, determinant, max.iter, max.time, eps, num.threads, keep.posteriors, keep.densities, transitionProbs.initial=NULL, startProbs.initial=NULL, verbosity=1) {
 
     ptm.start <- startTimedMessage("Starting multivariate HMM with ", length(comb.states), " combinatorial states")
     message("")
@@ -242,12 +271,17 @@ runMultivariate <- function(binned.data, info, comb.states, use.states, distribu
     ### Arrays for finding maximum posterior for each bin between offsets
     ## Make bins with offset
     ptm <- startTimedMessage("Making bins with offsets ...")
-    if (length(offsets) > 1) {
-        stepbins <- suppressMessages( fixedWidthBins(chrom.lengths = seqlengths(binned.data), binsizes = as.numeric(offsets[2]), chromosomes = unique(seqnames(binned.data)))[[1]] )
-    } else {
-        stepbins <- binned.data
-        mcols(stepbins) <- NULL
-    }
+    # if (is.null(stepbins)) {
+    #     if (length(offsets) > 1) {
+    #         stepbins <- suppressMessages( fixedWidthBins(chrom.lengths = seqlengths(binned.data), binsizes = as.numeric(offsets[2]), chromosomes = unique(seqnames(binned.data)))[[1]] )
+    #     } else {
+    #         stepbins <- binned.data
+    #         mcols(stepbins) <- NULL
+    #     }
+    #     counts.rpkm <- NULL
+    # } else {
+    #     counts.rpkm <- stepbins$counts.rpkm
+    # }
     ## Dummy bins without mcols for shifting
     sbins <- binned.data
     mcols(sbins) <- NULL
@@ -255,7 +289,9 @@ runMultivariate <- function(binned.data, info, comb.states, use.states, distribu
     if (get.posteriors) {
         aposteriors.step <- array(0, dim = c(length(stepbins), nummod, 2), dimnames = list(bin=NULL, track=info$ID, offset=c('previousOffsets', 'currentOffset'))) # to store posteriors-per-sample for current and max-of-previous offsets
     }
-    acounts.step <- array(0, dim = c(length(stepbins), nummod, 2), dimnames = list(bin=NULL, track=info$ID, offset=c('previousOffsets', 'currentOffset'))) # to store counts for current and sum-of-previous offsets
+    # if (is.null(counts.rpkm)) {
+    #     acounts.step <- array(0, dim = c(length(stepbins), nummod, 2), dimnames = list(bin=NULL, track=info$ID, offset=c('previousOffsets', 'currentOffset'))) # to store counts for current and sum-of-previous offsets
+    # }
     amaxPosterior.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset'))) # to store maximum posterior for current and max-of-previous offsets
     astates.step <- array(0, dim = c(length(stepbins), 2), dimnames = list(bin=NULL, offset=c('previousOffsets', 'currentOffset'))) # to store states for current and max-of-previous offsets
     stopTimedMessage(ptm)
@@ -295,7 +331,7 @@ runMultivariate <- function(binned.data, info, comb.states, use.states, distribu
             get.posteriors = as.logical(get.posteriors), # bool* keep_posteriors
             densities = double(length=lenDensities), # double* densities
             keep.densities = as.logical(keep.densities), # bool* keep_densities
-            states = integer(length=length(binned.data)), # int* states
+            states = double(length=length(binned.data)), # double* states
             maxPosterior = double(length=length(binned.data)), # double* maxPosterior
             A = double(length=length(comb.states)*length(comb.states)), # double* A
             proba = double(length=length(comb.states)), # double* proba
@@ -387,12 +423,14 @@ runMultivariate <- function(binned.data, info, comb.states, use.states, distribu
         if (get.posteriors) {
             aposteriors.step[ind@from, , 'currentOffset'] <- post.per.track[ind@to, , drop=FALSE]
         }
-        acounts.step[ind@from, , 'currentOffset'] <- hmm$counts[ind@to, , drop=FALSE]
+        # if (is.null(counts.rpkm)) {
+        #     acounts.step[ind@from, , 'currentOffset'] <- hmm$counts[ind@to, , drop=FALSE]
+        #     ## Sum over previous counts
+        #     acounts.step[, , 'previousOffsets'] <- acounts.step[, , 'previousOffsets', drop=FALSE] + acounts.step[, , 'currentOffset', drop=FALSE]
+        # 
+        # }
         astates.step[ind@from, 'currentOffset'] <- hmm$states[ind@to]
         amaxPosterior.step[ind@from, 'currentOffset'] <- hmm$maxPosterior[ind@to]
-        
-        ## Sum counts
-        acounts.step[, , 'previousOffsets'] <- acounts.step[, , 'previousOffsets', drop=FALSE] + acounts.step[, , 'currentOffset', drop=FALSE]
         
         ## Find offset that maximizes the posteriors for each bin
         ##-- Start stuff to call C code
@@ -430,9 +468,13 @@ runMultivariate <- function(binned.data, info, comb.states, use.states, distribu
 
     # Average and normalize counts to RPKM
     ptm <- startTimedMessage("Collecting counts and posteriors over offsets ...")
-    counts.step <- acounts.step[, , 'previousOffsets'] / length(offsets)
-    rm(acounts.step); gc()
-    counts.step <- rpkm.matrix(counts.step, binsize = width(binned.data)[1])
+    # if (is.null(counts.rpkm)) {
+    #     counts.step <- acounts.step[, , 'previousOffsets'] / length(offsets)
+    #     rm(acounts.step); gc()
+    #     counts.step <- rpkm.matrix(counts.step, binsize = width(binned.data)[1])
+    # } else {
+    #     counts.step <- counts.rpkm
+    # }
     if (get.posteriors) {
         stepbins$posteriors <- aposteriors.step[,,'previousOffsets']
         rm(aposteriors.step); gc()
@@ -446,7 +488,7 @@ runMultivariate <- function(binned.data, info, comb.states, use.states, distribu
     
     ## Bin coordinates, posteriors and states ##
     result$bins <- stepbins
-    result$bins$counts.rpkm <- counts.step
+    # result$bins$counts.rpkm <- counts.step
     if (!is.null(use.states$state)) {
         state.levels <- levels(use.states$state)
     } else {
@@ -509,12 +551,17 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
     ## Load first HMM for coordinates
     ptm <- startTimedMessage("Getting coordinates ...")
     hmm <- suppressMessages( loadHmmsFromFiles(hmms[[1]], check.class=class.univariate.hmm)[[1]] )
-    bins <- hmm$bincounts
+  # hmm$bins$counts <- array(hmm$bins$counts, dim=c(length(hmm$bins), 1), dimnames=list(bin=NULL, offset='0'))
+  # hmm$bincounts <- hmm$bins
+  # hmm$bins$counts.rpkm <- rpkm.matrix(hmm$bins$counts, width(hmm$bins)[1])
+    bincounts <- hmm$bincounts
+    mcols(bincounts) <- NULL
+    bins <- hmm$bins
     mcols(bins) <- NULL
     stopTimedMessage(ptm)
 
     if (!is.null(chromosomes)) {
-        chromsNotInData <- setdiff(chromosomes, unique(seqnames(bins)))
+        chromsNotInData <- setdiff(chromosomes, unique(seqnames(bincounts)))
         if (length(chromsNotInData) == length(chromosomes)) {
             stop("None of the specified chromosomes '", paste0(chromsNotInData, collapse=', '), "' exists.")
         }
@@ -529,17 +576,24 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
     distributions <- list(hmm$distributions)
     weights <- list(hmm$weights)
     offsets <- dimnames(hmm$bincounts$counts)[[2]]
-    counts <- array(NA, dim = c(length(bins), nummod, length(offsets)), dimnames = list(bin=NULL, track=NULL, offset=offsets))
+    counts <- array(NA, dim = c(length(bincounts), nummod, length(offsets)), dimnames = list(bin=NULL, track=NULL, offset=offsets))
     counts[,1,] <- hmm$bincounts$counts
-    binary_statesmatrix <- matrix(NA, ncol=nummod, nrow=length(bins))
-    bins.state <- hmm$bins$state[seq(from=1, to=length(hmm$bins), length.out = length(bins))]
+    counts.rpkm <- array(NA, dim = c(length(hmm$bins), nummod), dimnames = list(bin=NULL, track=NULL))
+    counts.rpkm[,1] <- hmm$bins$counts.rpkm
+    binary_statesmatrix <- matrix(NA, ncol=nummod, nrow=length(bincounts))
+    bins.state <- hmm$bins$state[seq(from=1, to=length(hmm$bins), by=length(hmm$bins)/length(hmm$bincounts))]
     binary_statesmatrix[,1] <- c(FALSE,FALSE,TRUE)[bins.state]
     for (i1 in 2:nummod) {
         hmm <- suppressMessages( loadHmmsFromFiles(hmms[[i1]], check.class=class.univariate.hmm)[[1]] )
+    # hmm$bins$counts <- array(hmm$bins$counts, dim=c(length(hmm$bins), 1), dimnames=list(bin=NULL, offset='0'))
+    # hmm$bincounts <- hmm$bins
+    # hmm$bins$counts.rpkm <- rpkm.matrix(hmm$bins$counts, width(hmm$bins)[1])
         info[[i1]] <- hmm$info
         distributions[[i1]] <- hmm$distributions
         weights[[i1]] <- hmm$weights
         counts[,i1,] <- hmm$bincounts$counts
+        counts.rpkm[,i1] <- hmm$bins$counts.rpkm
+        bins.state <- hmm$bins$state[seq(from=1, to=length(hmm$bins), by=length(hmm$bins)/length(hmm$bincounts))]
         binary_statesmatrix[,i1] <- c(FALSE,FALSE,TRUE)[bins.state] # F,F,T corresponds to levels 'zero-inflation','unmodified','modified'
     }
     info <- do.call(rbind, info)
@@ -549,13 +603,15 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
         info <- data.frame(file=rep(NA, n), mark=1:n, condition=1:n, replicate=rep(1, n), pairedEndReads=rep(NA, n), controlFiles=rep(NA, n))
         info$ID <- paste0(info$mark, '-', info$condition, '-rep', info$replicate)
     }
-    bins$counts <- counts
-    colnames(bins$counts) <- info$ID
-    maxcounts <- max(bins$counts)
-    bins$binary_statesmatrix <- binary_statesmatrix
+    bincounts$counts <- counts
+    colnames(bincounts$counts) <- info$ID
+    bins$counts.rpkm <- counts.rpkm
+    colnames(bins$counts.rpkm) <- info$ID
+    maxcounts <- max(bincounts$counts)
+    bincounts$binary_statesmatrix <- binary_statesmatrix
     if (!is.null(chromosomes)) {
         # Select only specified chromosomes
-        bins <- bins[seqnames(bins) %in% chromosomes]
+        bincounts <- bincounts[seqnames(bincounts) %in% chromosomes]
     }
     stopTimedMessage(ptm)
 
@@ -564,17 +620,17 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
 
     ## Transform binary to decimal
     ptm <- startTimedMessage("Getting combinatorial states ...")
-    decimal_states <- rep(0,length(bins))
+    decimal_states <- rep(0,length(bincounts))
     for (imod in 1:nummod) {
-        decimal_states <- decimal_states + 2^(nummod-imod) * bins$binary_statesmatrix[,imod]
+        decimal_states <- decimal_states + 2^(nummod-imod) * bincounts$binary_statesmatrix[,imod]
     }
-    bins$binary_statesmatrix <- NULL
-    bins$state <- decimal_states
+    bincounts$binary_statesmatrix <- NULL
+    bincounts$state <- decimal_states
     if (is.null(use.states)) {
-        comb.states.table <- sort(table(bins$state), decreasing=TRUE)
+        comb.states.table <- sort(table(bincounts$state), decreasing=TRUE)
         comb.states <- names(comb.states.table)
     } else {
-        comb.states.table <- sort(table(bins$state)[as.character(use.states$state)], decreasing=TRUE)
+        comb.states.table <- sort(table(bincounts$state)[as.character(use.states$state)], decreasing=TRUE)
         comb.states <- names(comb.states.table)
         comb.states <- c(comb.states, setdiff(use.states$state, comb.states))
     }
@@ -617,10 +673,10 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
 
     ## Compute the z matrix
     ptm <- startTimedMessage("Transfering values into z-matrix ...")
-    z.per.bin = array(NA, dim=c(length(bins), nummod, 2), dimnames=list(bin=1:length(bins), track=info$ID, state.labels[2:3]))
+    z.per.bin = array(NA, dim=c(length(bincounts), nummod, 2), dimnames=list(bin=1:length(bincounts), track=info$ID, state.labels[2:3]))
     for (imod in 1:nummod) {
         for (i1 in 1:2) {
-            z.per.bin[ , imod, i1] <- z.per.read[bins$counts[,imod,'0']+1, imod, i1]
+            z.per.bin[ , imod, i1] <- z.per.read[bincounts$counts[,imod,'0']+1, imod, i1]
         }
     }
 
@@ -650,7 +706,7 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
     ## Calculate correlation matrix serial
     for (state in comb.states) {
         istate = which(comb.states==state)
-        mask = which(bins$state==as.numeric(state))
+        mask = which(bincounts$state==as.numeric(state))
         # Convert state to binary representation
         binary_state <- numericToBin(as.numeric(state), nummod)
         # Subselect z
@@ -686,11 +742,11 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
     stopTimedMessage(ptm)
 
 #     ## Calculate emission densities (only debugging, do in C++ otherwise)
-#     densities <- matrix(1, ncol=numstates2use, nrow=length(bins))
+#     densities <- matrix(1, ncol=numstates2use, nrow=length(bincounts))
 #     for (comb.state in comb.states) {
 # print(comb.state)
 #         istate <- which(comb.state==comb.states)
-#         z.temp <- matrix(NA, nrow=length(bins), ncol=nummod)
+#         z.temp <- matrix(NA, nrow=length(bincounts), ncol=nummod)
 #         bin.comb.state <- dec2bin(comb.state, colnames=info$ID)
 #         product <- 1
 #         for (imod in 1:nummod) {
@@ -699,11 +755,11 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
 #             if (rownames(distributions[[imod]])[ind.modstate] == 'unmodified') {
 #                 size <- distributions[[imod]][ind.modstate,'size']
 #                 prob <- distributions[[imod]][ind.modstate,'prob']
-#                 product <- product * dzinbinom(bins$counts[,imod,'0'], w=weights[[imod]]['zero-inflation'], size, prob)
+#                 product <- product * dzinbinom(bincounts$counts[,imod,'0'], w=weights[[imod]]['zero-inflation'], size, prob)
 #             } else if (rownames(distributions[[imod]])[ind.modstate] == 'modified') {
 #                 size <- distributions[[imod]][ind.modstate,'size']
 #                 prob <- distributions[[imod]][ind.modstate,'prob']
-#                 product <- product * stats::dnbinom(bins$counts[,imod,'0'], size, prob)
+#                 product <- product * stats::dnbinom(bincounts$counts[,imod,'0'], size, prob)
 #             }
 #         }
 #         exponent <- -0.5 * apply( ( z.temp %*% (correlationMatrixInverse[ , , istate] - diag(nummod)) ) * z.temp, 1, sum)
@@ -712,6 +768,7 @@ prepareMultivariate = function(hmms, use.states=NULL, max.states=NULL, chromosom
 
     # Return parameters
     out = list(info = info,
+                bincounts = bincounts,
                 bins = bins,
                 comb.states = comb.states,
                 use.states = use.states,
