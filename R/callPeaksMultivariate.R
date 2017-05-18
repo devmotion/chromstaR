@@ -180,7 +180,7 @@ callPeaksMultivariate <- function(hmms, use.states, max.states=NULL, per.chrom=T
                 if (!is.null(temp.savedir)) {
                     temp.savename <- file.path(temp.savedir, paste0('chromosome_', chrom, '.RData'))
                     if (!file.exists(temp.savename)) {
-                        model <- runMultivariate(binned.data=bincounts, stepbins=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.posteriors.per.state=keep.posteriors.per.state, keep.densities=keep.densities, verbosity=verbosity)
+                        model <- runMultivariate(binned.data=bincounts, stepbins=bins, info=p$info, comb.states=p$comb.states, use.states=p$use.states, distributions=p$distributions, weights=p$weights, correlationMatrix=p$correlationMatrix, correlationMatrixInverse=p$correlationMatrixInverse, determinant=p$determinant, max.iter=max.iter, max.time=max.time, eps=eps, num.threads=1, keep.posteriors=keep.posteriors, keep.densities=keep.densities, keep.posteriors.per.state=keep.posteriors.per.state, verbosity=verbosity)
                         save(model, file=temp.savename)
                         rm(model); gc()
                     }
